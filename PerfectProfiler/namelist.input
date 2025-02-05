@@ -1,0 +1,41 @@
+#
+# The namelist for PerfectProfiler
+#
+# Any lines that start with an "#" are ignored and the default is used
+# if possible. Some parameters must be defined by the use for PerfectProfiler
+# to run (e.g., model type).
+#
+# Model information
+model                 = 1            # 1-WRF, 5-CM1
+model_frequency       = 300          # Frequency of model output
+model_dir             = /work2/matthew.ammon/NatureRun_20230226
+model_prefix          = wrfwof_d02_       # Prefix for the model data filenames
+coordinate_type        = 1            # 1-Lat/Lon, 2-x,y,z
+use_calendar          = 1            # If 1 than the start and end times are defined by calendar. If 0 they are in model integration time
+#
+# Mesonet information
+station_file          = networks/20230226/48_sites.txt       # Scan file that contains locations for the mesonets
+temp_error            = 1.0
+wind_error            = 1.0
+rh_error              = 0.20
+max_height            = 3000
+level_spacing         = 10
+#
+# Timing information
+start_year           = 2023
+start_month          = 2
+start_day            = 27
+start_hour           = 0
+start_min            = 0
+start_sec            = 0
+end_year             = 2023
+end_month            = 2
+end_day              = 27
+end_hour             = 1
+end_min              = 30
+end_sec              = 0
+#
+# Output information
+outfile_root         = 48_UAS
+append               = 0
+clobber              = 1

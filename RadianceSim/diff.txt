@@ -1,0 +1,13 @@
+202c202
+<     z = np.insert(z,0,model['alt'])
+---
+>     z = np.insert(z,0,np.round(model['alt']))
+249c249
+<     z = np.insert(z,0,np.round(model['alt']))
+---
+>     z = np.insert(z,0,model['alt'])
+315c315
+<     
+\ No newline at end of file
+---
+>     

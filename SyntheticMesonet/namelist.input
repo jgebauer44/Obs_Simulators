@@ -1,0 +1,39 @@
+#
+# The namelist for SyntheticMesonet
+#
+# Any lines that start with an "#" are ignored and the default is used
+# if possible. Some parameters must be defined by the use for SyntheticMesonet
+# to run (e.g., model type).
+#
+# Model information
+model                 = 1            # 1-WRF, 5-CM1
+model_frequency       = 900          # Frequency of model output
+model_dir             = /home/joshua.gebauer/NatureRun_20230419/
+model_prefix          = wrfwof_d02_       # Prefix for the model data filenames
+coordinate_type        = 1            # 1-Lat/Lon, 2-x,y,z
+use_calendar          = 1            # If 1 than the start and end times are defined by calendar. If 0 they are in model integration time
+#
+# Mesonet information
+station_file          = OK_Mesonet.txt       # Scan file that contains locations for the mesonet
+temp_error            = 0.5          # Mesonet temperature error
+rh_error              = 3.0          # Mesonet RH error
+wind_error            = 1.0          # Error in wind components
+#
+# Timing information
+start_year           = 2023
+start_month          = 4
+start_day            = 19
+start_hour           = 21
+start_min            = 0
+start_sec            = 0
+end_year             = 2023
+end_month            = 4
+end_day              = 19
+end_hour             = 22
+end_min              = 30
+end_sec              = 0
+#
+# Output information
+outfile_root         = OK_Mesonet
+append               = 1
+clobber              = 0

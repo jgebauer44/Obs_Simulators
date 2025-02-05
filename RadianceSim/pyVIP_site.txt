@@ -1,0 +1,45 @@
+# The input parameter file for the AERIoe retrieval
+#
+# Note that lines that start with a "#" are ignored and the default is used
+# The keys on the left of the "=" are important, and will be matched by the same
+# strings in the VIP structure.  The values on the right of the = are the values
+#
+# This section is for AERI options
+tag                       = sim   # String for temporary files / directories (default "tag")
+aeri                      = 1        # 1 - ARM, 2 - dmv2cdf, 3 - dmv2ncdf, 4 - ARM, eng in summary, -1 - No AERI (default 0)
+aeri_path                 = /data/RadianceSim_Output/AERI/IRS_WIST_Wister_20230419_210000.nc     # Path to AERI ch1 radiance files (default "None")
+aeri_noise_file           = /home/tropoe/vip/src/tropoe/AERI_avg_noise_20220301_20220430.nc        # Path to AERI summary files (default "None")
+append                    = 0
+#psfc_max                  = 1030.    # Default maximum surface pressure [mb] (default 1030.)
+#
+# This section is for mwr options
+mwr                        = 1        # 0-none, 1-Tb fields are individual, 2-Tb field is 2-d array (default 0)
+mwr_path                   = /data/RadianceSim_Output/MWR/MWR_WIST_Wister_20230419_210000.nc     # Path to the MWR data (default None)
+#
+# This section is for mwrscan options
+mwrscan                    = 0        # 0-none, 1-Tb fields are individual, 2-Tb field is 2-d array (default 0)
+mwrscan_path               = /data/RadianceSim_Output/MWRscan/MWR_NORM_20230419_210000.nc     # Path to the MWRscan data (default None)
+#
+# This section controls the cloud base height options
+cbh_default_ht            = 2.0       # Default CBH height [km AGL], if no CBH data found (default 2.0)
+#
+# This section defines the output directory and files
+output_rootname           = WIST_Wister_AERI_MWR      # String with the rootname of the output file (default None)
+output_path               = /data/TROPoeSim_Output/AERI_MWR     # Path where the output file will be placed (default None)
+output_clobber            = 1         # 0-do not clobber preexisting output, 1-clobber them, 2-append to last file of dataset (default 0)
+#output_file_keep_small    = 0        # 0 - all fields written, 1-keep output file small by not including Sop, Akern... (default 0)
+#
+#
+# This section controls the retrieval options
+#max_itrations             = 10       # The maximum number of iterations to use (default 10)
+#first_guess               = 1        # 1- use prior as FG, 2-use lapse rate and 60% RH as FG, 3-use previous sample as FG (default 1)
+superadiabatic_maxht      = 0.100    # The maximum height a superadiabatic layer at the surface can have [km AGL] (default 0.300)
+#
+spectral_bands            = 612-618,624-660,674-713,713-722,538-588,860.1-864.0,872.2-877.5,898.2-905.4 # No spaces here, no default
+#
+#
+globatt_Site = WRF Simulation
+globatt_Instrument = RadianceSim
+globatt_Dataset_contact = Joshua Gebauer,CIWRO/NOAA, joshua.gebauer@noaa.gov
+globatt_Processing_comment = Data were processed using radiosonde prior information
+globatt_LBLRTM_comment = Data were processed using LBLRTM.v12.2 in the TROPoe Docker container

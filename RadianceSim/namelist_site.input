@@ -1,0 +1,36 @@
+model                = 1         # 5-CM1
+model_frequency      = 900       # Frequency of model output
+model_dir            = /data/NatureRun_20230419/              # Director with the model data
+model_prefix         = wrfwof_d02_    # Prefix for the model data files
+outfile_root         = MWR_CHIC_Chickasha
+append               = 0         # Flag for whether we are appending to existing file
+clobber              = 1         # Flag for whether we are clobbering existing file
+#
+profiler_x           = -97.91446    # x-position for profiler in meters
+profiler_y           = 35.03236    # y-position for profiler in meters
+use_calendar         = 1
+start_year           = 2023
+start_month          = 4
+start_day            = 19
+start_hour           = 21
+start_min            = 0
+start_sec            = 0
+end_year             = 2023
+end_month            = 4
+end_day              = 19
+end_hour             = 22
+end_min              = 30
+end_sec              = 0
+start_time           = 600       # Start time of the simulation
+end_time             = 7800      # End time of the simulation
+profiler_type        = 2         # 1-IRS, 2-MWR
+aeri_noise_file      = /home/tropoe/vip/src/tropoe/AERI_avg_noise_20220301_20220430.nc
+coordinate_type      = 1
+#
+mp_scheme            = 1         # 1-NSSL, 2-Morrison
+ndcnst               = 250       # Number of cloud drops for microphysic scheme
+#
+spectral_bands       = 612-618,624-660,674-713,713-722,538-588,860.1-864.0,872.2-877.5,898.2-905.4
+mwr_freq             = 22.24,23.04,23.84,25.44,26.24,27.84,31.4,51.26,52.28,53.86,54.94,56.66,57.3,58
+mwr_noise            = 0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.8,0.8,0.3,0.3,0.3,0.25,0.25
+mwr_elev             = 9.8,17.9,23.9,29.9,42,90,138,149.9,155.9,161.9,169.8
