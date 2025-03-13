@@ -364,7 +364,7 @@ if namelist['success'] != 1:
 # Read in the radar scan file
 print('Reading in radar station file')
 try:
-    stations = np.genfromtxt(namelist['station_file'], delimiter= ' ',autostrip=True,usecols=[1,2,3])
+    stations = np.genfromtxt(namelist['station_file'],autostrip=True,usecols=[1,2,3])
 except:
     print('ERROR: Something went wrong reading radar stations')
     print('>>> MRMS_RefSim FAILED and ABORTED <<<')

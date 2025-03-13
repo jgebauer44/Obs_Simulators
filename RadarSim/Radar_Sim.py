@@ -502,8 +502,8 @@ if namelist['success'] != 1:
 # Read in the radar scan file
 print('Reading in radar station file')
 try:
-    stations = np.genfromtxt(namelist['station_file'], delimiter= ' ',autostrip=True,usecols=[1,2,3])
-    station_id = np.genfromtxt(namelist['station_file'],dtype=str, delimiter= ' ',autostrip=True,usecols=[0])
+    stations = np.genfromtxt(namelist['station_file'],autostrip=True,usecols=[1,2,3])
+    station_id = np.genfromtxt(namelist['station_file'],dtype=str,autostrip=True,usecols=[0])
 except:
     print('ERROR: Something went wrong reading radar stations')
     print('>>> Radar_Sim FAILED and ABORTED <<<')
