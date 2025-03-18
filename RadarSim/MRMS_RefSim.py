@@ -220,7 +220,7 @@ def get_mrms_mask(x,y,alt,levels,ground,xx,yy,min_el=0.5,max_el=19.5,max_range=3
         grid_sfc_rng = np.stack([np.sqrt(xx_temp**2 + yy_temp**2)]*len(levels),axis=0)
 
         # Find the elevation for the points around the radar 
-        el = beam_elv(grid_sfc_rng,levels)
+        el = beam_elv(grid_sfc_rng,zz_temp)
         
         foo = np.where(((el >= min_el) & (el <= max_el) & (grid_sfc_rng <= sfc_rng[-1])))
     

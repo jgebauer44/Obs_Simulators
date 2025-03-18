@@ -727,7 +727,7 @@ if namelist['success'] != 1:
 # Read in the radar scan file
 print('Reading in mesonet station file')
 try:
-    stations = np.genfromtxt(namelist['station_file'], delimiter= ' ',autostrip=True)
+    stations = np.genfromtxt(namelist['station_file'],autostrip=True)
 except:
     print('ERROR: Something went wrong reading radar scan')
     print('>>> LidarSim FAILED and ABORTED <<<')
