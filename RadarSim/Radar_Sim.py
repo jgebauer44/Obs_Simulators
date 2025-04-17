@@ -29,7 +29,7 @@ def read_namelist(filename):
                  'start_hour':0,                  # Ignored if use_calendar is 0
                  'start_min':0,                   # Ignored if use_calendar is 0
                  'start_sec':0,                   # Ignored if use_calendar is 0
-                 'end_year':0,                    #Ignored is use_calendar is 0
+                 'end_year':0,                    # Ignored is use_calendar is 0
                  'end_month':0,                   # Ignored if use_calendar is 0
                  'end_day':0,                     # Ignored if use_calendar is 0
                  'end_hour':0,                    # Ignored if use_calendar is 0
@@ -217,18 +217,18 @@ def read_cm1(stations,model_dir,time,frequency,prefix):
 
     file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
 
-    if int(time/frequency) < 10:
-        file =  model_dir + '/' + prefix + '_00000' + str(int(model_time/frequency)) +'.nc'
-    elif int(time/frequency) < 100:
-        file = model_dir + '/' + prefix + '_0000' + str(int(model_time/frequency))+'.nc'
-    elif int(time/frequency) < 1000:
-        file = model_dir + '/' + prefix + '_000' + str(int(model_time/frequency))+'.nc'
-    elif int(time/frequency) < 10000:
-        file = model_dir + '/' + prefix + '_00' + str(int(model_time/frequency))+'.nc'
-    elif int(time/frequency) < 100000:
-        file = model_dir +'/' + prefix + '_0' + str(int(model_time/frequency))+'.nc'
+    if int(time/frequency)+1 < 10:
+        file =  model_dir + '/' + prefix + '_00000' + str(int(time/frequency)+1) +'.nc'
+    elif int(time/frequency)+1 < 100:
+        file = model_dir + '/' + prefix + '_0000' + str(int(time/frequency)+1)+'.nc'
+    elif int(time/frequency)+1 < 1000:
+        file = model_dir + '/' + prefix + '_000' + str(int(time/frequency)+1)+'.nc'
+    elif int(time/frequency)+1 < 10000:
+        file = model_dir + '/' + prefix + '_00' + str(int(time/frequency)+1)+'.nc'
+    elif int(time/frequency)+1 < 100000:
+        file = model_dir +'/' + prefix + '_0' + str(int(time/frequency)+1)+'.nc'
     else:
-        file = model_dir + '/' + prefix + '_' + str(int(model_time/frequency))+'.nc'
+        file = model_dir + '/' + prefix + '_' + str(int(time/frequency)+1)+'.nc'
 
     f = Dataset(file,'r')
 
@@ -272,7 +272,10 @@ def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevati
 
     a_e = 4*6371 *1000/3
 
-    print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
+    if isinstance(time,datetime):
+        print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
+    else:
+        print('Starting generation of obs for time: ' + str(time))
 
     if namelist['model'] == 1:
         model_data = read_wrf(stations,model_dir,time,prefix,latlon)
