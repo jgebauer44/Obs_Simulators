@@ -178,7 +178,7 @@ def beam_elv(sfc_range,z):
         sfc_rng = np.stack([sfc_rng]*19,axis=0)
     
     if len(zz.shape) == 1:
-        zz = np.tile(zz,[sfc_rng.shape[1],sfc_rng.shape[2],1]).T
+        zz = np.tile(zz,[sfc_rng.shape[2],sfc_rng.shape[1],1]).T
 
     eradius=6371000.
     frthrde=(4.*eradius/3.)

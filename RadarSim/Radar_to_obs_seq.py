@@ -251,7 +251,10 @@ output_dir = args.output_dir
 delta_x = args.grid_spacing*1000
 write_ref = args.write_ref
 dbz0_thinning = args.zeros_thinning
-dbz0_levels = np.array(args.zeros_levels.strip().split(',')).astype(float)
+if args.zeros_thinning is not None:
+    dbz0_levels = np.array(args.zeros_levels.strip().split(',')).astype(float)
+else:
+    dbz0_levels = None
 ref_min = args.ref_threshold
 
 files = []
