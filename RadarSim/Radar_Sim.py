@@ -16,7 +16,7 @@ def read_namelist(filename):
     
     
     namelist = ({'success':0,
-                 'model':0,              # Type of model used for the simulation. 1-WRF 5-CM1 (only one that works right now)
+                 'model':0,              # Type of model used for the simulation. 1-WRF 5-CM1
                  'model_frequency':0.,    # Frequency of the model output used for the simulation
                  'model_dir':'None',        # Directory with the model data
                  'model_prefix':'None',     # Prefix for the model data files
@@ -136,12 +136,8 @@ def sfc_rng_to_range(sfc_range,el,z):
 
     return r
 
+def read_wrf(stations,model_dir,time,prefix,latlon):
 
-def create_radar_obs(stations,station_id,model_dir,time,prefix,elevations,latlon=1,max_range=300):
-
-    a_e = 4*6371 *1000/3
-
-    print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
     file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
 
     try:
@@ -213,6 +209,77 @@ def create_radar_obs(stations,station_id,model_dir,time,prefix,elevations,latlon
     lon = fid.variables['XLONG'][0]
     fid.close()
 
+    return {'station_x':station_x_proj,'station_y':station_y_proj, 'station_alt':station_alt,
+            'xx':xx,'yy':yy,'zz':zz, 'x_grid':x_grid, 'y_grid':y_grid, 'lat':lat,'lon':lon, 'u':u_fixed, 'v':v_fixed, 'w':w_fixed,
+            'ref':ref,'ground':ground,'truelat1':truelat1, 'truelat2':truelat2, 'lat0':lat_0, 'lon0':lon_0, 'proj':'lcc',}
+
+def read_cm1(stations,model_dir,time,frequency,prefix):
+
+    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
+
+    if int(time/frequency) < 10:
+        file =  model_dir + '/' + prefix + '_00000' + str(int(model_time/frequency)) +'.nc'
+    elif int(time/frequency) < 100:
+        file = model_dir + '/' + prefix + '_0000' + str(int(model_time/frequency))+'.nc'
+    elif int(time/frequency) < 1000:
+        file = model_dir + '/' + prefix + '_000' + str(int(model_time/frequency))+'.nc'
+    elif int(time/frequency) < 10000:
+        file = model_dir + '/' + prefix + '_00' + str(int(model_time/frequency))+'.nc'
+    elif int(time/frequency) < 100000:
+        file = model_dir +'/' + prefix + '_0' + str(int(model_time/frequency))+'.nc'
+    else:
+        file = model_dir + '/' + prefix + '_' + str(int(model_time/frequency))+'.nc'
+
+    f = Dataset(file,'r')
+
+    z = f.variables['zh'][:]*1000
+    x_grid = f.variables['xh'][:]*1000
+    y_grid = f.variables['yh'][:]*1000
+
+    xx, yy = np.meshgrid(x_grid,y_grid)
+    zz = z[:,None,None] * np.ones(xx.shape)[None,:,:]
+
+    ground = np.zeros(xx.shape)
+
+    station_x_proj = np.copy(stations[:,0])
+    station_y_proj = np.copy(stations[:,1])
+    station_alt = np.copy(stations[:,2])
+
+    truelat1 = 0
+    truelat2 = 0
+    lat_0 = 0
+    lon_0 = 0
+
+    rho = f.variables['rho'][0]
+    ref = f.variables['dbz'][0]
+
+    w_t = dbztowt(ref,rho)
+
+    u = f.variables['uinterp'][:]
+    v = f.variables['vinterp'][:]
+    w = f.variables['winterp'][:] + w_t
+
+    lat = np.zeros(xx.shape)
+    lon = np.zeros(xx.shape)
+
+    f.close()
+
+    return {'station_x':station_x_proj,'station_y':station_y_proj, 'station_alt':station_alt,
+            'xx':xx,'yy':yy,'zz':zz, 'x_grid':x_grid, 'y_grid':y_grid, 'lat':lat,'lon':lon, 'u':u, 'v':v, 'w':w,
+            'ref':ref,'ground':ground,'truelat1':truelat1, 'truelat2':truelat2, 'lat0':lat_0, 'lon0':lon_0, 'proj':'None',}
+
+def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevations,latlon=1,max_range=300):
+
+    a_e = 4*6371 *1000/3
+
+    print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
+
+    if namelist['model'] == 1:
+        model_data = read_wrf(stations,model_dir,time,prefix,latlon)
+    
+    elif namelist['model'] == 5:
+        model_data = read_cm1(stations,model_dir,time,frequency,prefix)
+
     beam_height = np.sqrt(max_range**2 + (a_e)**2 + 2*(a_e)*max_range*np.sin(np.deg2rad(elevations[0])))-a_e
     sfc_rng = a_e*np.arcsin(max_range*np.cos(np.deg2rad(elevations[0]))/(a_e+beam_height))*1000
 
@@ -231,12 +298,12 @@ def create_radar_obs(stations,station_id,model_dir,time,prefix,elevations,latlon
         print('Generating data for ' + station_id[k])
 
         # Calculate the surface range from the radar
-        xx_temp = xx-station_x_proj[k]
-        yy_temp = yy-station_y_proj[k]
-        zz_temp = zz-station_alt[k]
+        xx_temp = model_data['xx']-model_data['station_x_proj'][k]
+        yy_temp = model_data['yy']-model_data['station_y_proj'][k]
+        zz_temp = model_data['zz']-model_data['station_alt'][k]
 
-        x_grid_temp = x_grid-station_x_proj[k]
-        y_grid_temp = y_grid-station_y_proj[k]
+        x_grid_temp = model_data['x_grid']-model_data['station_x_proj'][k]
+        y_grid_temp = model_data['y_grid']-model_data['station_y_proj'][k]
         grid_sfc_rng = np.sqrt(xx_temp**2 + yy_temp**2)
 
         az_temp = np.rad2deg(np.arctan2(xx_temp, yy_temp))
@@ -276,14 +343,14 @@ def create_radar_obs(stations,station_id,model_dir,time,prefix,elevations,latlon
         x_index_min = np.argmin(np.abs(x_grid_min-x_grid_temp))
         x_index_max = np.argmin(np.abs(x_grid_max-x_grid_temp))
 
-        ref_temp = ref[:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        u_temp = u_fixed[:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        v_temp = v_fixed[:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        w_temp = w_fixed[:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        ref_temp = model_data['ref'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        u_temp = model_data['u'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        v_temp = model_data['v'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        w_temp = model_data['w'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
 
-        ground_temp = ground[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        lat_temp = lat[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        lon_temp = lon[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        ground_temp = model_data['ground'][y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        lat_temp = model_data['lat'][y_index_min:y_index_max+1,x_index_min:x_index_max+1]
+        lon_temp = model_data['lon'][y_index_min:y_index_max+1,x_index_min:x_index_max+1]
         xxx_temp = xx_temp[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
         yyy_temp = yy_temp[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
         zzz_temp = zz_temp[:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
@@ -312,7 +379,7 @@ def create_radar_obs(stations,station_id,model_dir,time,prefix,elevations,latlon
 
                 tmp_vel[:,i,j] = (uuu*xx_temp[i,j] + vvv*yy_temp[i,j] + www*scan_z[:,i,j])/np.sqrt(xx_temp[i,j]**2+yy_temp[i,j]**2+scan_z[:,i,j]**2)
 
-        fah = np.where(np.stack([ground_temp]*len(elevations)) >= (scan_z+station_alt[k]))
+        fah = np.where(np.stack([ground_temp]*len(elevations)) >= (scan_z+model_data['station_alt'][k]))
         tmp_rf[fah] = np.nan
         tmp_vel[fah] = np.nan
 
@@ -337,8 +404,8 @@ def create_radar_obs(stations,station_id,model_dir,time,prefix,elevations,latlon
     radar = {'station_id': station_id, 'ref':ref_scans, 'vel':vel_scans,
              'lat':lat_scans, 'lon':lon_scans, 'x':xx_scans, 'y':yy_scans,'z':zz_scans,
              'radar_lat':stations[:,0], 'radar_lon':stations[:,1],'radar_alt':stations[:,2],
-             'el':elevations,'az':az_temp,'truelat1':truelat1, 'truelat2':truelat2,
-             'lat0':lat_0, 'lon0':lon_0, 'proj':'lcc','good':good}
+             'el':elevations,'az':az_temp,'truelat1':np.copy(model_data['truelat1']), 'truelat2':np.copy(model_data['truelat2']),
+             'lat0':np.copy(model_data['lat_0']), 'lon0':np.copy(model_data['lon_0']), 'proj':'lcc','good':good}
 
     return 1, radar
 
@@ -598,16 +665,12 @@ for index in range(len(snum)):
         '        ...but was already processed. Continuing.'
         continue
     
-    if namelist['model'] == 1:
-        success, radar = create_radar_obs(stations,station_id,namelist['model_dir'],model_time[index],
-                                     namelist['model_prefix'], elevations, namelist['coordinate_type'])
+    success, radar = create_radar_obs(stations,station_id,namelist['model_dir'],model_time[index],namelist['model_frequency'],
+                     namelist['model_prefix'], elevations, namelist['coordinate_type'])
         
-        if success != 1:
-            print('Something went wrong collecting the radar obs for ', model_time[index])
-            print('Skipping model time')
-            continue
-    else:
-        print('Error: Model type ' + namelist['model_type'] + ' is not a valid option')
-        
+    if success != 1:
+        print('Something went wrong collecting the radar obs for ', model_time[index])
+        print('Skipping model time')
+        continue
         
     write_to_file(radar,output_dir, namelist, model_time[index], index, start_time, end_time)
