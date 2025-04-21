@@ -26,22 +26,29 @@ def beam_elv(sfc_range, z):
         return -999.
     
 def write_dart_obs_seq(radar,x,y,lon,lat,z,time,output_dir,site_id,
-                       site_lon,site_lat,site_alt,write_ref,dbz0_z,
-                       vr_errors = 3,ref_errors=5,dbz0_errors=7):
+                       site_lon,site_lat,site_alt,write_ref,dbz0_z,cm1,
+                       vr_errors = 3,ref_errors=5,dbz0_errors=5):
     
-    lats = np.radians(lat)
-    lons = np.radians(lon)
+    if cm1:
+        lats = np.copy(lat)
+        lons = np.copy(lon)
+
+        platform_lat = np.copy(site_lat)
+        platform_lon = np.copy(site_lon)
+    else:
+        lats = np.radians(lat)
+        lons = np.radians(lon)
+        lons = np.where(lons > 0.0, lons, lons+(2.0*np.pi))
+
+        platform_lat        = np.radians(site_lat)
+        platform_lon        = np.radians(site_lon)
+
+        if platform_lon < 0:
+            platform_lon = platform_lon+(2*np.pi)
+
     hgts = z + site_alt
     vert_coord = 3
     truth = 1.0
-    
-    lons = np.where(lons > 0.0, lons, lons+(2.0*np.pi))
-    
-    platform_lat        = np.radians(site_lat)
-    platform_lon        = np.radians(site_lon)
-
-    if platform_lon < 0:
-         platform_lon = platform_lon+(2*np.pi)
     
     platform_key        = 1
     platform_vert_coord = 3
@@ -92,11 +99,15 @@ def write_dart_obs_seq(radar,x,y,lon,lat,z,time,output_dir,site_id,
                         f.write(" %d %d %d\n" % (nobs-1, nobs+1, -1) )
             
                     f.write("obdef\n")
-                    f.write("loc3d\n")
-
-                    f.write("    %20.14f          %20.14f          %20.14f     %d\n" % 
+                    if cm1:
+                        f.write("loc3Dxyz")
+                        f.write("    %20.14f          %20.14f          %20.14f\n" % 
+                            (lons[j,i], lats[j,i], hgts[k,j,i]))
+                    else:
+                        f.write("loc3d\n")
+                        f.write("    %20.14f          %20.14f          %20.14f     %d\n" % 
                             (lons[j,i], lats[j,i], hgts[k,j,i], vert_coord))
-            
+
                     f.write("kind\n")
 
                     f.write("     %d     \n" % 36 )
@@ -108,9 +119,13 @@ def write_dart_obs_seq(radar,x,y,lon,lat,z,time,output_dir,site_id,
                     platform_dir3 = np.sin(np.deg2rad(elevation_angle))
 
                     f.write("platform\n")
-                    f.write("loc3d\n")
-
-                    f.write("    %20.14f          %20.14f        %20.14f    %d\n" % 
+                    if cm1:
+                        f.write("loc3Dxyz\n")
+                        f.write("    %20.14f          %20.14f        %20.14f\n" % 
+                            (platform_lon, platform_lat, site_alt) )
+                    else:
+                        f.write("loc3d\n")
+                        f.write("    %20.14f          %20.14f        %20.14f    %d\n" % 
                             (platform_lon, platform_lat, site_alt, platform_vert_coord) )
           
                     f.write("dir3d\n")
@@ -151,9 +166,13 @@ def write_dart_obs_seq(radar,x,y,lon,lat,z,time,output_dir,site_id,
                             f.write(" %d %d %d\n" % (nobs-1, nobs+1, -1) )
             
                         f.write("obdef\n")
-                        f.write("loc3d\n")
-
-                        f.write("    %20.14f          %20.14f          %20.14f     %d\n" % 
+                        if cm1:
+                            f.write("loc3Dxyz")
+                            f.write("    %20.14f          %20.14f          %20.14f\n" % 
+                            (   lons[j,i], lats[j,i], hgts[k,j,i]))
+                        else:
+                            f.write("loc3d\n")
+                            f.write("    %20.14f          %20.14f          %20.14f     %d\n" % 
                                 (lons[j,i], lats[j,i], hgts[k,j,i], vert_coord))
             
                         f.write("kind\n")
@@ -192,10 +211,14 @@ def write_dart_obs_seq(radar,x,y,lon,lat,z,time,output_dir,site_id,
                             f.write(" %d %d %d\n" % (nobs-1, nobs+1, -1) )
                     
                         f.write("obdef\n")
-                        f.write("loc3d\n")
-            
-                        f.write("    %20.14f          %20.14f          %20.14f     %d\n" % 
-                            (lons[j,i], lats[j,i], dbz0_z[k], vert_coord))
+                        if cm1:
+                            f.write("loc3Dxyz")
+                            f.write("    %20.14f          %20.14f          %20.14f\n" % 
+                            (   lons[j,i], lats[j,i], dbz0_z[k]))
+                        else:
+                            f.write("loc3d\n")
+                            f.write("    %20.14f          %20.14f          %20.14f     %d\n" % 
+                                (lons[j,i], lats[j,i], dbz0_z[k], vert_coord))
             
                         f.write("kind\n")
             
@@ -243,6 +266,8 @@ parser.add_argument('ref_threshold',type=float,help='Threshold for the minimum v
 parser.add_argument("--write_ref", action="store_true", help="Set this to write the reflectivity obs to obs_seq")
 parser.add_argument("--zeros_thinning",type=int, help="Thinning factor for 0dBZ obs")
 parser.add_argument("--zeros_levels",help='Levels for the 0dBZ obs')
+parser.add_argument("--cm1",action="store_true", help='Use timing and spatial information for a CM1 style model')
+parser.add_argument("--set_DA_time",type=str, help="Overwrite the basetime in the obs file")
 
 args = parser.parse_args()
 
@@ -256,6 +281,8 @@ if args.zeros_thinning is not None:
 else:
     dbz0_levels = None
 ref_min = args.ref_threshold
+cm1 = args.cm1
+DA_time = args.set_DA_time
 
 files = []
 files = files + glob.glob(input_dir + '/*.nc')
@@ -265,8 +292,13 @@ keys = []
 for i in range(len(files)):
     f = Dataset(files[i])
 
-    time = f.variables['base_time'][0] + f.variables['time_offset'][:]
-    time = np.array([datetime.fromtimestamp(ts,tz=timezone.utc) for ts in time])
+    if not cm1:
+        time = f.variables['base_time'][0] + f.variables['time_offset'][:]
+        time = np.array([datetime.fromtimestamp(ts,tz=timezone.utc) for ts in time])
+    elif DA_time is not None:
+        DA_time_dt = (datetime.strptime(DA_time,'%Y%m%d%H%M%S')- datetime(1970,1,1)).total_seconds()
+        time = (DA_time_dt) + f.variables['time_offset'][:].astype(float)
+        time = np.array([datetime.fromtimestamp(ts,tz=timezone.utc) for ts in time])
 
     ref = f.variables['reflectivity'][:]
     vr = f.variables['radial_velocity'][:]
@@ -279,7 +311,8 @@ for i in range(len(files)):
     site_lat = f.site_lat
     site_alt = f.site_alt
 
-    map = pyproj.Proj(proj=f.projection, ellps='WGS84', datum='WGS84', lat_1=f.truelat1, lat_2=f.truelat2, lat_0=site_lat, lon_0=site_lon)
+    if not cm1:
+        map = pyproj.Proj(proj=f.projection, ellps='WGS84', datum='WGS84', lat_1=f.truelat1, lat_2=f.truelat2, lat_0=site_lat, lon_0=site_lon)
 
     f.close()
 
@@ -288,7 +321,11 @@ for i in range(len(files)):
     y_grid = np.arange(np.min(y),np.max(y)+1,delta_x)
     x_grid, y_grid = np.meshgrid(x_grid,y_grid)
 
-    lons, lats = map(x_grid, y_grid, inverse=True)
+    if cm1:
+        lons = np.copy(x_grid) + site_lon
+        lats = np.copy(y_grid) + site_lat
+    else:
+        lons, lats = map(x_grid, y_grid, inverse=True)
     # Loop over all of the times
     z_grid = np.ones((ref.shape[1],x_grid.shape[0],x_grid.shape[1]))*np.nan
     cref_grid = np.ones((ref.shape[1],x_grid.shape[0],x_grid.shape[1]))*np.nan
@@ -361,7 +398,7 @@ for i in range(len(files)):
 
          # Now write the DART file
         write_dart_obs_seq(radar,x_grid,y_grid,lons,lats,z_grid,time[k],output_dir,
-                           site_id,site_lon,site_lat,site_alt,write_ref,dbz0_levels)
+                           site_id,site_lon,site_lat,site_alt,write_ref,dbz0_levels,cm1)
         
 
 

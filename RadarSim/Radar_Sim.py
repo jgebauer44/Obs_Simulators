@@ -169,14 +169,14 @@ def read_wrf(stations,model_dir,time,prefix,latlon):
         x_grid = np.arange(nx) * dx + x0
         y_grid = np.arange(ny) * dy + y0
         xx, yy = np.meshgrid(np.arange(nx) * dx + x0, np.arange(ny) * dy + y0)
-        station_x_proj, station_y_proj = transformer.transform(stations[:,1], stations[:,0])
-        station_alt = np.copy(stations[:,2])
+        station_x_proj, station_y_proj = transformer.transform(np.atleast_2d(stations)[:,1], np.atleast_2d(stations)[:,0])
+        station_alt = np.copy(np.atleast_2d(stations[:,2]))
         
     else:
         xx, yy = np.meshgrid(np.arange(fid.dimensions['west_east'].size) * fid.DX, np.arange(fid.dimensions['south_north'].size) * fid.DY)
-        station_x_proj = np.copy(stations[:,0])
-        station_y_proj = np.copy(stations[:,1])
-        station_alt = np.copy(stations[:,2])
+        station_x_proj = np.copy(np.atleast_2d(stations)[:,0])
+        station_y_proj = np.copy(np.atleast_2d(stations)[:,1])
+        station_alt = np.copy(np.atleast_2d(stations)[:,2])
 
         truelat1 = 0
         truelat2 = 0
@@ -215,8 +215,6 @@ def read_wrf(stations,model_dir,time,prefix,latlon):
 
 def read_cm1(stations,model_dir,time,frequency,prefix):
 
-    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
-
     if int(time/frequency)+1 < 10:
         file =  model_dir + '/' + prefix + '_00000' + str(int(time/frequency)+1) +'.nc'
     elif int(time/frequency)+1 < 100:
@@ -241,9 +239,9 @@ def read_cm1(stations,model_dir,time,frequency,prefix):
 
     ground = np.zeros(xx.shape)
 
-    station_x_proj = np.copy(stations[:,0])
-    station_y_proj = np.copy(stations[:,1])
-    station_alt = np.copy(stations[:,2])
+    station_x_proj = np.copy(np.atleast_2d(stations)[:,0])
+    station_y_proj = np.copy(np.atleast_2d(stations)[:,1])
+    station_alt = np.copy(np.atleast_2d(stations)[:,2])
 
     truelat1 = 0
     truelat2 = 0
@@ -255,9 +253,9 @@ def read_cm1(stations,model_dir,time,frequency,prefix):
 
     w_t = dbztowt(ref,rho)
 
-    u = f.variables['uinterp'][:]
-    v = f.variables['vinterp'][:]
-    w = f.variables['winterp'][:] + w_t
+    u = f.variables['uinterp'][0]
+    v = f.variables['vinterp'][0]
+    w = f.variables['winterp'][0] + w_t
 
     lat = np.zeros(xx.shape)
     lon = np.zeros(xx.shape)
@@ -268,7 +266,7 @@ def read_cm1(stations,model_dir,time,frequency,prefix):
             'xx':xx,'yy':yy,'zz':zz, 'x_grid':x_grid, 'y_grid':y_grid, 'lat':lat,'lon':lon, 'u':u, 'v':v, 'w':w,
             'ref':ref,'ground':ground,'truelat1':truelat1, 'truelat2':truelat2, 'lat0':lat_0, 'lon0':lon_0, 'proj':'None',}
 
-def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevations,latlon=1,max_range=300):
+def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevations,namelist,latlon=1,max_range=300):
 
     a_e = 4*6371 *1000/3
 
@@ -296,17 +294,17 @@ def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevati
     az_scans = []
     good = []
 
-    for k in range(stations.shape[0]):
+    for k in range(np.atleast_2d(stations).shape[0]):
         
-        print('Generating data for ' + station_id[k])
+        print('Generating data for ' + np.atleast_1d(station_id)[k])
 
         # Calculate the surface range from the radar
-        xx_temp = model_data['xx']-model_data['station_x_proj'][k]
-        yy_temp = model_data['yy']-model_data['station_y_proj'][k]
+        xx_temp = model_data['xx']-model_data['station_x'][k]
+        yy_temp = model_data['yy']-model_data['station_y'][k]
         zz_temp = model_data['zz']-model_data['station_alt'][k]
 
-        x_grid_temp = model_data['x_grid']-model_data['station_x_proj'][k]
-        y_grid_temp = model_data['y_grid']-model_data['station_y_proj'][k]
+        x_grid_temp = model_data['x_grid']-model_data['station_x'][k]
+        y_grid_temp = model_data['y_grid']-model_data['station_y'][k]
         grid_sfc_rng = np.sqrt(xx_temp**2 + yy_temp**2)
 
         az_temp = np.rad2deg(np.arctan2(xx_temp, yy_temp))
@@ -406,9 +404,9 @@ def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevati
 
     radar = {'station_id': station_id, 'ref':ref_scans, 'vel':vel_scans,
              'lat':lat_scans, 'lon':lon_scans, 'x':xx_scans, 'y':yy_scans,'z':zz_scans,
-             'radar_lat':stations[:,0], 'radar_lon':stations[:,1],'radar_alt':stations[:,2],
+             'radar_lat':np.atleast_2d(stations[:,0]), 'radar_lon':np.atleast_2d(stations[:,1]),'radar_alt':np.atleast_2d(stations[:,2]),
              'el':elevations,'az':az_temp,'truelat1':np.copy(model_data['truelat1']), 'truelat2':np.copy(model_data['truelat2']),
-             'lat0':np.copy(model_data['lat_0']), 'lon0':np.copy(model_data['lon_0']), 'proj':'lcc','good':good}
+             'lat0':np.copy(model_data['lat0']), 'lon0':np.copy(model_data['lon0']), 'proj':'lcc','good':good}
 
     return 1, radar
 
@@ -419,17 +417,17 @@ def write_to_file(radar,output_dir, namelist, model_time, snum, start_time, end_
         start_str = start_time.strftime('%Y%m%d_%H%M%S')
         end_str = end_time.strftime('%Y%m%d_%H%M%S')
     else:
-        start_str = str(start_time)
-        end_str = str(end_time)
+        start_str = str(int(start_time))
+        end_str = str(int(end_time))
     
     # We need to do this for each radar site
-    for i in range(len(radar['station_id'])):
+    for i in range(len(np.atleast_1d(radar['station_id']))):
 
         # If there is nothing good for this radar then don't write a file
         if not radar['good'][i]:
             continue
 
-        outfile_path = output_dir + '/' + namelist['outfile_root'] + '_' + radar['station_id'][i] + '_' + start_str + '_' + end_str + '.nc'
+        outfile_path = output_dir + '/' + namelist['outfile_root'] + '_' + np.atleast_1d(radar['station_id'])[i] + '_' + start_str + '_' + end_str + '.nc'
 
         # We don't want to append the file needs to be created the first time  
         if ((namelist['append'] == 0) & (not os.path.exists(outfile_path))):
@@ -512,10 +510,10 @@ def write_to_file(radar,output_dir, namelist, model_time, snum, start_time, end_
             fid.truelat2 = radar['truelat2']
             fid.lat0 = radar['lat0']
             fid.lon0 = radar['lon0']
-            fid.site_id = radar['station_id'][i]
-            fid.site_lon = radar['radar_lon'][i]
-            fid.site_lat = radar['radar_lat'][i]
-            fid.site_alt = radar['radar_alt'][i]
+            fid.site_id = np.atleast_1d(radar['station_id'])[i]
+            fid.site_lon = np.atleast_1d(radar['radar_lon'])[i]
+            fid.site_lat = np.atleast_1d(radar['radar_lat'])[i]
+            fid.site_alt = np.atleast_1d(radar['radar_alt'])[i]
 
         # Append the data to the file
     
@@ -669,7 +667,7 @@ for index in range(len(snum)):
         continue
     
     success, radar = create_radar_obs(stations,station_id,namelist['model_dir'],model_time[index],namelist['model_frequency'],
-                     namelist['model_prefix'], elevations, namelist['coordinate_type'])
+                     namelist['model_prefix'], elevations, namelist, namelist['coordinate_type'])
         
     if success != 1:
         print('Something went wrong collecting the radar obs for ', model_time[index])
