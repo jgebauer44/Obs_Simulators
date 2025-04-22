@@ -213,7 +213,7 @@ def create_mrms_ref(stations,model_dir,time,frequency,prefix,levels,mrms_mask,na
 
     # We only have to do this once
     if mrms_mask is None:
-        mrms_mask = get_mrms_mask(model_data['station_x_proj'], model_data['station_y_proj'], model_data['station_alt'],
+        mrms_mask = get_mrms_mask(model_data['station_x'], model_data['station_y'], model_data['station_alt'],
                                    levels, model_data['ground'],model_data['xx'],model_data['yy'])
     
     # Initialize the mrms array
