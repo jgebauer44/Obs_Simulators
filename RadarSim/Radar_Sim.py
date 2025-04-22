@@ -404,7 +404,7 @@ def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevati
 
     radar = {'station_id': station_id, 'ref':ref_scans, 'vel':vel_scans,
              'lat':lat_scans, 'lon':lon_scans, 'x':xx_scans, 'y':yy_scans,'z':zz_scans,
-             'radar_lat':np.atleast_2d(stations[:,0]), 'radar_lon':np.atleast_2d(stations[:,1]),'radar_alt':np.atleast_2d(stations[:,2]),
+             'radar_lat':np.atleast_2d(stations)[:,0], 'radar_lon':np.atleast_2d(stations)[:,1],'radar_alt':np.atleast_2d(stations)[:,2],
              'el':elevations,'az':az_temp,'truelat1':np.copy(model_data['truelat1']), 'truelat2':np.copy(model_data['truelat2']),
              'lat0':np.copy(model_data['lat0']), 'lon0':np.copy(model_data['lon0']), 'proj':'lcc','good':good}
 
