@@ -5,6 +5,7 @@ from netCDF4 import Dataset
 from argparse import ArgumentParser
 import glob
 import pyproj
+from scipy.interpolate import interp1d
 from datetime import datetime, timedelta
 
 def read_namelist(filename):
@@ -91,16 +92,15 @@ def read_namelist(filename):
     
     return namelist
 
-def create_mrms_ref(stations,model_dir,time,prefix,levels,mrms_mask,latlon=1):
+def read_wrf(stations,model_dir,time,prefix,latlon):
 
-    print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
     file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
 
     try:
         fid = Dataset(file,'r')
     except:
         print('Could not open ' + file)
-        return -999., 0, mrms_mask
+        return -999., 0
     
     # Get the the location of the profiler based on the map projection
     if latlon == 1:
@@ -125,14 +125,14 @@ def create_mrms_ref(stations,model_dir,time,prefix,levels,mrms_mask,latlon=1):
         x_grid = np.arange(nx) * dx + x0
         y_grid = np.arange(ny) * dy + y0
         xx, yy = np.meshgrid(np.arange(nx) * dx + x0, np.arange(ny) * dy + y0)
-        station_x_proj, station_y_proj = transformer.transform(stations[:,1], stations[:,0])
-        station_alt = np.copy(stations[:,2])
+        station_x_proj, station_y_proj = transformer.transform(np.atleast_2d(stations)[:,1], np.atleast_2d(stations)[:,0])
+        station_alt = np.copy(np.atleast_2d(stations[:,2]))
         
     else:
         xx, yy = np.meshgrid(np.arange(fid.dimensions['west_east'].size) * fid.DX, np.arange(fid.dimensions['south_north'].size) * fid.DY)
-        station_x_proj = np.copy(stations[:,0])
-        station_y_proj = np.copy(stations[:,1])
-        station_alt = np.copy(stations[:,3])
+        station_x_proj = np.copy(np.atleast_2d(stations)[:,0])
+        station_y_proj = np.copy(np.atleast_2d(stations)[:,1])
+        station_alt = np.copy(np.atleast_2d(stations)[:,2])
 
         truelat1 = 0
         truelat2 = 0
@@ -148,25 +148,95 @@ def create_mrms_ref(stations,model_dir,time,prefix,levels,mrms_mask,latlon=1):
     lon = fid.variables['XLONG'][0]
     fid.close()
 
+    return {'station_x':station_x_proj,'station_y':station_y_proj, 'station_alt':station_alt,
+            'xx':xx,'yy':yy,'zz':zz, 'x_grid':x_grid, 'y_grid':y_grid, 'lat':lat,'lon':lon,
+            'ref':ref,'ground':ground,'truelat1':truelat1, 'truelat2':truelat2, 'lat0':lat_0, 'lon0':lon_0, 'proj':'lcc',}
+
+def read_cm1(stations,model_dir,time,frequency,prefix):
+
+    if int(time/frequency)+1 < 10:
+        file =  model_dir + '/' + prefix + '_00000' + str(int(time/frequency)+1) +'.nc'
+    elif int(time/frequency)+1 < 100:
+        file = model_dir + '/' + prefix + '_0000' + str(int(time/frequency)+1)+'.nc'
+    elif int(time/frequency)+1 < 1000:
+        file = model_dir + '/' + prefix + '_000' + str(int(time/frequency)+1)+'.nc'
+    elif int(time/frequency)+1 < 10000:
+        file = model_dir + '/' + prefix + '_00' + str(int(time/frequency)+1)+'.nc'
+    elif int(time/frequency)+1 < 100000:
+        file = model_dir +'/' + prefix + '_0' + str(int(time/frequency)+1)+'.nc'
+    else:
+        file = model_dir + '/' + prefix + '_' + str(int(time/frequency)+1)+'.nc'
+
+    f = Dataset(file,'r')
+
+    z = f.variables['zh'][:]*1000
+    x_grid = f.variables['xh'][:]*1000
+    y_grid = f.variables['yh'][:]*1000
+
+    xx, yy = np.meshgrid(x_grid,y_grid)
+    zz = z[:,None,None] * np.ones(xx.shape)[None,:,:]
+
+    ground = np.zeros(xx.shape)
+
+    station_x_proj = np.copy(np.atleast_2d(stations)[:,0])
+    station_y_proj = np.copy(np.atleast_2d(stations)[:,1])
+    station_alt = np.copy(np.atleast_2d(stations)[:,2])
+
+    truelat1 = 0
+    truelat2 = 0
+    lat_0 = 0
+    lon_0 = 0
+
+    ref = f.variables['dbz'][0]
+
+    lat = np.zeros(xx.shape)
+    lon = np.zeros(xx.shape)
+
+    f.close()
+
+    return {'station_x':station_x_proj,'station_y':station_y_proj, 'station_alt':station_alt,
+            'xx':xx,'yy':yy,'zz':zz, 'x_grid':x_grid, 'y_grid':y_grid, 'lat':lat,'lon':lon,
+            'ref':ref,'ground':ground,'truelat1':truelat1, 'truelat2':truelat2, 'lat0':lat_0, 'lon0':lon_0, 'proj':'None',}
+
+def create_mrms_ref(stations,model_dir,time,frequency,prefix,levels,mrms_mask,namelist,latlon=1):
+
+    if isinstance(time,datetime):
+        print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
+    else:
+        print('Starting generation of obs for time: ' + str(time))
+    
+    if namelist['model'] == 1:
+        model_data = read_wrf(stations,model_dir,time,prefix,latlon)
+    
+    elif namelist['model'] == 5:
+        model_data = read_cm1(stations,model_dir,time,frequency,prefix)
+
     # We only have to do this once
     if mrms_mask is None:
-        mrms_mask = get_mrms_mask(station_x_proj, station_y_proj, station_alt, levels, ground,xx,yy)
+        mrms_mask = get_mrms_mask(model_data['station_x_proj'], model_data['station_y_proj'], model_data['station_alt'],
+                                   levels, model_data['ground'],model_data['xx'],model_data['yy'])
     
     # Initialize the mrms array
-    mrms_ref = np.ones((len(levels),ref.shape[1],ref.shape[2]))
+    mrms_ref = np.ones((len(levels),model_data['ref'].shape[1],model_data['ref'].shape[2]))
 
-    # Looooong loop, I am going to have to come back to this
-    # to find a faster way to do this
-    for i in range(ref.shape[1]):
-        for j in range(ref.shape[2]):
-            mrms_ref[:,i,j] = np.interp(levels,zz[:,i,j],ref[:,i,j],left = np.nan,right=np.nan)
+    # Put the data on the mrms levels
+    if namelist['model'] == 5:
+        func = interp1d(model_data['zz'][:,0,0],model_data['ref'],axis=0,bounds_error=False)
+        mrms_ref = func(levels)
+    else:
+        # Looooong loop, I am going to have to come back to this
+        # to find a faster way to do this. WRF vertical grids are a pain
+        for i in range(model_data['ref'].shape[1]):
+            for j in range(model_data['ref'].shape[2]):
+                mrms_ref[:,i,j] = np.interp(levels,model_data['zz'][:,i,j],model_data['ref'][:,i,j],left = np.nan,right=np.nan)
     
     # Apply the mask to the data to remove where we don't want it
     mrms_ref[mrms_mask] = np.nan
 
-    ref_dict = {'lat':lat,'lon':lon,'x':xx,'y':yy,'z':levels,
-                'mrms_ref':mrms_ref, 'truelat1':truelat1, 'truelat2':truelat2,
-                'lat0':lat_0, 'lon0':lon_0, 'proj':'lcc'}
+    ref_dict = {'lat':np.copy(model_data['lat']),'lon':np.copy(model_data['lon']),'x':np.copy(model_data['xx']),
+                'y':np.copy(model_data['yy']),'z':np.copy(levels), 'mrms_ref':np.copy(mrms_ref), 'truelat1':np.copy(model_data['truelat1']),
+                'truelat2':np.copy(model_data['truelat2']), 'lat0':np.copy(model_data['lat_0']), 'lon0':np.copy(model_data['lon_0']), 'proj':'lcc'}
+    
     return 1, ref_dict, mrms_mask
 
 def beam_elv(sfc_range,z):
@@ -238,8 +308,8 @@ def write_to_file(radar,output_dir, namelist, model_time, snum, start_time, end_
         start_str = start_time.strftime('%Y%m%d_%H%M%S')
         end_str = end_time.strftime('%Y%m%d_%H%M%S')
     else:
-        start_str = str(start_time)
-        end_str = str(end_time)
+        start_str = str(int(start_time))
+        end_str = str(int(end_time))
     
     outfile_path = output_dir + '/' + namelist['outfile_root'] + '_' + start_str + '_' + end_str + '.nc'
     
@@ -459,16 +529,12 @@ for index in range(len(snum)):
         '        ...but was already processed. Continuing.'
         continue
     
-    if namelist['model'] == 1:
-        success, radar, mrms_mask = create_mrms_ref(stations,namelist['model_dir'],model_time[index],
-                                     namelist['model_prefix'], levels, mrms_mask, namelist['coordinate_type'])
+    success, radar, mrms_mask = create_mrms_ref(stations,namelist['model_dir'],model_time[index],namelist['model_frequency'],
+                                    namelist['model_prefix'], levels, mrms_mask, namelist, namelist['coordinate_type'])
         
-        if success != 1:
-            print('Something went wrong collecting the radar obs for ', model_time[index])
-            print('Skipping model time')
-            continue
-    else:
-        print('Error: Model type ' + namelist['model_type'] + ' is not a valid option')
-        
+    if success != 1:
+        print('Something went wrong collecting the radar obs for ', model_time[index])
+        print('Skipping model time')
+        continue
         
     write_to_file(radar,output_dir, namelist, model_time[index], index, start_time, end_time)
