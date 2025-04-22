@@ -235,7 +235,7 @@ def create_mrms_ref(stations,model_dir,time,frequency,prefix,levels,mrms_mask,na
 
     ref_dict = {'lat':np.copy(model_data['lat']),'lon':np.copy(model_data['lon']),'x':np.copy(model_data['xx']),
                 'y':np.copy(model_data['yy']),'z':np.copy(levels), 'mrms_ref':np.copy(mrms_ref), 'truelat1':np.copy(model_data['truelat1']),
-                'truelat2':np.copy(model_data['truelat2']), 'lat0':np.copy(model_data['lat_0']), 'lon0':np.copy(model_data['lon_0']), 'proj':'lcc'}
+                'truelat2':np.copy(model_data['truelat2']), 'lat0':np.copy(model_data['lat0']), 'lon0':np.copy(model_data['lon0']), 'proj':'lcc'}
     
     return 1, ref_dict, mrms_mask
 
