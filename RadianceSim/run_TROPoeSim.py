@@ -1,11 +1,11 @@
-import numpy as np
+:import numpy as np
 import pandas as pd
 import os
 from pathlib import Path
 
 df = pd.read_csv('/data/geoinfo-Jan8.csv')
 
-meso_lats = np.array(df['nlat'])
+meso_lats = np.array(df['nlat'])`
 meso_lons = np.array(df['elon'])
 meso_elev = np.array(df['elev'])
 meso_ids = np.array(df['stid'])
