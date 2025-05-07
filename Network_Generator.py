@@ -15,7 +15,7 @@ parser.add_argument("network_name",type=str,help="Name of the network for filena
 
 args = parser.parse_args()
 
-file = args.input_file
+file = args.reference_file
 output_dir = args.output_dir
 site_dx = args.site_spacing
 scatter = args.scatter_distance
