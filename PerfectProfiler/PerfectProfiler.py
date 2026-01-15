@@ -292,7 +292,7 @@ def create_profiler_wrf(stations,model_dir,time,prefix,levels, namelist,latlon=1
     q = fid.variables['QVAPOR'][0]*1000
     f_q = RegularGridInterpolator((fake_z,y_grid,x_grid), q, bounds_error=False)
     
-    rain = fid.variables['RAINNC'][0]
+    rain = np.nanmax(fid.variables['REFL_10CM'][0],axis=0)
     f_rain = RegularGridInterpolator((y_grid,x_grid), rain, bounds_error=False)
     
     sinalpha = fid['SINALPHA'][0,:,:]
@@ -355,7 +355,7 @@ def create_profiler_wrf(stations,model_dir,time,prefix,levels, namelist,latlon=1
         
         rr = f_rain((station_y_proj[i],station_x_proj[i]))
         
-        if rr > 0.001:
+        if rr > 15:
             rh[:] = np.nan
             tt[:] = np.nan
             uu[:] = np.nan
@@ -750,7 +750,7 @@ if namelist['success'] != 1:
 # Read in the radar scan file
 print('Reading in profiler station file')
 try:
-    stations = np.genfromtxt(namelist['station_file'], delimiter= ' ',autostrip=True)
+    stations = np.genfromtxt(namelist['station_file'],autostrip=True)
 except:
     print('ERROR: Something went wrong reading profiler station file')
     print('>>> PerfectProfiler FAILED and ABORTED <<<')
