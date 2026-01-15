@@ -378,7 +378,7 @@ def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevati
                 vvv = np.interp(scan_z[:,i,j],zzz_temp[:,i,j],v_temp[:,i,j],left=np.nan,right=np.nan)
                 www = np.interp(scan_z[:,i,j],zzz_temp[:,i,j],w_temp[:,i,j],left=np.nan,right=np.nan)
 
-                tmp_vel[:,i,j] = (uuu*xx_temp[i,j] + vvv*yy_temp[i,j] + www*scan_z[:,i,j])/np.sqrt(xx_temp[i,j]**2+yy_temp[i,j]**2+scan_z[:,i,j]**2)
+                tmp_vel[:,i,j] = (uuu*xxx_temp[i,j] + vvv*yyy_temp[i,j] + www*scan_z[:,i,j])/np.sqrt(xxx_temp[i,j]**2+yyy_temp[i,j]**2+scan_z[:,i,j]**2)
 
         fah = np.where(np.stack([ground_temp]*len(elevations)) >= (scan_z+model_data['station_alt'][k]))
         tmp_rf[fah] = np.nan

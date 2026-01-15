@@ -263,7 +263,16 @@ def create_mesonet_wrf(stations,model_dir,time,prefix,namelist,latlon=1):
     lat = f.variables['XLAT'][0]
     lon = f.variables['XLONG'][0]
     ground = f.variables['HGT'][0,:,:]
-    psfc = f.variables['PSFC'][0]
+
+    # Adding a check to see if surface pressure is in the file. If not calculate it
+    if 'PSFC' in f.variables.keys():
+        psfc = f.variables['PSFC'][0]
+    else:
+        pres = f.variables['P'][0,0,:,:] + f.variables['PB'][0,0,:,:]
+        z = (f.variables['PH'][0,:2,:,:]+f.variables['PHB'][0,:2,:,:])/9.81
+        z = 0.5 * (z[1] + z[0])
+        tv = t*(1+0.61*q)
+        psfc = pres*np.exp(9.81*(z-ground)/(287.*tv))
     
     f.close()
     

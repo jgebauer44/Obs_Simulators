@@ -63,7 +63,7 @@ def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndc
         x0 = -(nx-1) / 2. * dx + e
         y0 = -(ny-1) / 2. * dy + n
         x_grid = np.arange(nx) * dx + x0
-        y_grid = np.arange(nx) * dx + y0
+        y_grid = np.arange(ny) * dy + y0
         xx, yy = np.meshgrid(np.arange(nx) * dx + x0, np.arange(ny) * dy + y0)
         prof_x_proj, prof_y_proj = transformer.transform(x, y)
         
@@ -85,10 +85,6 @@ def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndc
     p = (fid.variables['P'][0,:,:,:] + fid.variables['PB'][0,:,:,:])/100
     f = RegularGridInterpolator((fake_z,y_grid,x_grid), p, bounds_error=False)
     p = f((fake_z,np.ones(fake_z.shape[0])*prof_y_proj,np.ones(fake_z.shape[0])*prof_x_proj))
-    
-    psfc = fid.variables['PSFC'][0,:,:]/100
-    f = RegularGridInterpolator((y_grid,x_grid), psfc, bounds_error=False)
-    psfc = f((prof_y_proj,prof_x_proj))
     
     ground = fid.variables['HGT'][0,:,:]
     f = RegularGridInterpolator((y_grid,x_grid), ground, bounds_error=False)
@@ -114,8 +110,17 @@ def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndc
     q = f((fake_z,np.ones(fake_z.shape[0])*prof_y_proj,np.ones(fake_z.shape[0])*prof_x_proj))
     w = Calcs_Conversions.q2w(q)
     
+    # Adding a check to see if surface pressure is in the file. If not calculate it
+    if 'PSFC' in fid.variables.keys():
+        psfc = fid.variables['PSFC'][0]
+        f = RegularGridInterpolator((y_grid,x_grid), psfc, bounds_error=False)
+        psfc = f((prof_y_proj,prof_x_proj))
+    else:
+        tv = (t[0]+273.16)*(1+0.61*q[0]/1000)
+        psfc = p[0]*np.exp(9.81*(zz[0]-ground)/(287.*tv))
+        print(psfc)
+
     rho = Other_functions.get_density(t+273.16,w,p)
-    
     
     #--- Create Dictionaries to Store Hydrometeor information
     qx = {}   # kg kg^-1
@@ -148,7 +153,7 @@ def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndc
     f = RegularGridInterpolator((fake_z,y_grid,x_grid), ntx['cloud'], bounds_error=False)
     ntx['cloud'] = f((fake_z,np.ones(fake_z.shape[0])*prof_y_proj,np.ones(fake_z.shape[0])*prof_x_proj))
     
-    precip = fid.variables['RAINNC'][0]
+    precip = np.nanmax(fid.variables['REFL_10CM'][0],axis=0)
     f = RegularGridInterpolator((y_grid,x_grid), precip, bounds_error=False)
     precip = f((prof_y_proj,prof_x_proj))
     
@@ -157,6 +162,7 @@ def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndc
     f = RegularGridInterpolator((y_grid,x_grid), lwp, bounds_error=False)
     lwp = f((prof_y_proj,prof_x_proj))
     
+    fid.close()
     
     if mp_scheme == 1:
         rhox['snow'] = 100.

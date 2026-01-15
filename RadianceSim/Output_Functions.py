@@ -100,8 +100,8 @@ def write_output(namelist, output_dir, data1, data2, data3, model, model_time, s
         lwp.units = 'g/m^2'
         
         precip = fid.createVariable('precip', 'f4', ('time',))
-        precip.long_name = 'model precip'
-        precip.units = 'kg/m2/s'
+        precip.long_name = 'model reflectivity'
+        precip.units = 'dBZ'
         
     
         cbh = fid.createVariable('model_cbh','f4',('time',))

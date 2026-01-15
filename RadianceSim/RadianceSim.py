@@ -249,7 +249,7 @@ last_snum = -1
 if namelist['append'] == 1:
     
     # Make sure the files exists
-    if namelist['user_calendar'] == 1:
+    if namelist['use_calendar'] == 1:
         outname = output_dir + namelist['outfile_root'] + '_' + str(ymd) +'_' + model_time[0].strftime('%H%M%S') + '.nc' 
         if os.path.exists(output_dir + namelist['outfile_root'] + '_' + str(ymd) +'_' + model_time[0].strftime('%H%M%S') + '.nc' ):
             out = Dataset(output_dir + namelist['outfile_root'] + '_' + str(ymd) +'.nc' )

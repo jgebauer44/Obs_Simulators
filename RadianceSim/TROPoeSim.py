@@ -581,7 +581,7 @@ noutfilename = ''
 for i in range(len(aeri['secs'])):                        # { loop_i
     
     # Make sure that is isn't raining
-    if aeri['precip'][i] > 0.001:
+    if aeri['precip'][i] > 10:
         print(f"  Sample {i:2d} at {aeri['secs'][i]:.2f} -- raining, no retrieval performed")
         continue
     

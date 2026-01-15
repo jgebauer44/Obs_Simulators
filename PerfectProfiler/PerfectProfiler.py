@@ -309,16 +309,25 @@ def create_profiler_wrf(stations,model_dir,time,prefix,levels, namelist,latlon=1
     
     # We want all of the data on model levels from above the surface to max height
     
-    
-    profiler_t = np.ones((len(levels),len(station_y_proj)))*np.nan
-    profiler_u = np.ones((len(levels),len(station_y_proj)))*np.nan
-    profiler_v = np.ones((len(levels),len(station_y_proj)))*np.nan
-    profiler_dew = np.ones((len(levels),len(station_y_proj)))*np.nan
-    profiler_alt = np.ones((len(levels),len(station_y_proj)))*np.nan
+    if levels[0] < 0:
+        nlevels = t.shape[0]
+    else:
+        nlevels = len(levels)
+
+    profiler_t = np.ones((nlevels,len(station_y_proj)))*np.nan
+    profiler_u = np.ones((nlevels,len(station_y_proj)))*np.nan
+    profiler_v = np.ones((nlevels,len(station_y_proj)))*np.nan
+    profiler_dew = np.ones((nlevels,len(station_y_proj)))*np.nan
+    profiler_alt = np.ones((nlevels,len(station_y_proj)))*np.nan
     profiler_ground = np.ones(len(station_y_proj))*np.nan
-    profiler_rh = np.ones((len(levels),len(station_y_proj)))*np.nan
-    profiler_q = np.ones((len(levels),len(station_y_proj)))*np.nan
-    profiler_p = np.ones((len(levels),len(station_y_proj)))*np.nan
+    profiler_rh = np.ones((nlevels,len(station_y_proj)))*np.nan
+    profiler_q = np.ones((nlevels,len(station_y_proj)))*np.nan
+    profiler_p = np.ones((nlevels,len(station_y_proj)))*np.nan
+
+    profiler_p = np.ones((nlevels,len(station_y_proj)))*np.nan
+
+    profiler_tsfc = np.ones(len(station_y_proj))*np.nan
+    profiler_qsfc = np.ones(len(station_y_proj))*np.nan
     
     
     for i in range(len(station_y_proj)):
@@ -727,24 +736,24 @@ if output_dir is None:
     output_dir = os.getcwd() + '/'
 
 print("-----------------------------------------------------------------------")
-print("Starting Synthetic Mesonet")
+print("Starting PerfectProfiler")
 print("Output directory set to " + output_dir)
 
 # Read the namelist file
 namelist = read_namelist(namelist_file)
 namelist['output_dir'] = output_dir
 if namelist['success'] != 1:
-    print('>>> Synthetic Mesonet FAILED and ABORTED <<<')
+    print('>>> PerfectProfiler FAILED and ABORTED <<<')
     print("-----------------------------------------------------------------------")
     sys.exit()
 
 # Read in the radar scan file
-print('Reading in mesonet station file')
+print('Reading in profiler station file')
 try:
     stations = np.genfromtxt(namelist['station_file'], delimiter= ' ',autostrip=True)
 except:
-    print('ERROR: Something went wrong reading radar scan')
-    print('>>> LidarSim FAILED and ABORTED <<<')
+    print('ERROR: Something went wrong reading profiler station file')
+    print('>>> PerfectProfiler FAILED and ABORTED <<<')
     print("-----------------------------------------------------------------------")
     sys.exit()
 
@@ -776,7 +785,10 @@ else:
     end_str = str(model_time[-1])
 
 # Get the levels for the perfect profilers
-levels = np.arange(namelist['level_spacing'],namelist['max_height']+1,namelist['level_spacing'])
+if namelist['level_spaing'] < 0:
+    levels = np.array([-1])
+else:
+    levels = np.arange(namelist['level_spacing'],namelist['max_height']+1,namelist['level_spacing'])
 
 last_snum = -1
 # Check to see if this is an append run. 
@@ -793,7 +805,7 @@ if namelist['append'] == 1:
         if namelist['use_calendar'] == 0:
             if namelist['start_time'] != int(out.start_time):
                 print('Append mode was selected, but the start time is not the same.')
-                print(('>>> SyntheticMesonet FAILED and ABORTED'))
+                print(('>>> PerfectProfiler FAILED and ABORTED'))
                 print('--------------------------------------------------------------------')
                 print(' ')
                 sys.exit()
@@ -801,7 +813,7 @@ if namelist['append'] == 1:
         else:
            if start_time.strftime('%Y%m%d_%H%M%S') != out.start_time:
                print('Append mode was selected, but the start time is not the same.')
-               print(('>>> SyntheticMesonet FAILED and ABORTED'))
+               print(('>>> PerfectProfiler FAILED and ABORTED'))
                print('--------------------------------------------------------------------')
                print(' ')
                sys.exit()
