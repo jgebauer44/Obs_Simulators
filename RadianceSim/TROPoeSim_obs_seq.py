@@ -11,8 +11,34 @@ from netCDF4 import Dataset
 from datetime import datetime,timedelta
 import glob
 
+def calc_dewpoint_error(w, p, w_error):
+    
+    delta_w = 0.0001
+    
+    w_tmp = w/1000.
+    
+    w1 = w_tmp-delta_w
+    w2 = w_tmp+delta_w
+    
+    td_deriv_w = ( w2dpt(w2,p)-w2dpt(w1,p) )/(w2-w1)
+    
+    td_error = (w_error/1000) * td_deriv_w
+    
+    return td_error
 
-def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,output_dir):
+def w2e(w,p):
+    e = p * w / (0.622 + w)
+    return e
+
+def w2dpt(w,p):
+    
+    e = w2e(w,p)
+    val = np.log(e/6.112)
+    dew = 243*val/(17.67 - val)
+    
+    return dew
+
+def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,p,output_dir):
     
     xt_lon = np.radians(xt)
     yt_lat = np.radians(yt)
@@ -32,17 +58,6 @@ def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,output_dir):
     # Convert temperature to Kelvin
     t += 273.15
     
-    # Convert mixing ratio to specific humidity
-    
-    w_low = (w-sigw)/1000.
-    w_high = (w+sigw)/1000.
-    
-    q_low = w_low/(1+w_low)
-    q_high = w_high/(1+w_high)
-    
-    sigq = q_high-q_low
-    q = (w/1000)/(1+(w/1000))
-
     filename = output_dir + 'profiler_obs_seq_' + ttime[0].strftime('%Y%m%d_%H%M%S')
     
     f = open(filename,"w")
@@ -86,13 +101,15 @@ def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,output_dir):
             
             f.write("    %d          %d     \n" % (seconds, days) )
             
-            f.write("    %20.14f  \n" % sigt[i]**2 )
+            f.write("    %20.14f  \n" % (sigt[i])**2 )
             
     # Now do specific humidity
     
-    for i in range(len(q)):
+    for i in range(len(w)):
         
-        if np.isnan(q[i]):
+        if np.isnan(w[i]):
+            pass
+        elif (w2dpt(w[i]/1000, p[i]) + 273.15) < 250:    
             pass
         else:
             nobs += 1
@@ -102,8 +119,9 @@ def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,output_dir):
             seconds = sw_time.seconds
             
             f.write(" OBS            %d\n" % (nobs) )
-           
-            f.write("   %20.14f\n" % q[i] )
+            
+            dew_tmp = w2dpt(w[i]/1000, p[i]) + 273.15
+            f.write("   %20.14f\n" % dew_tmp )
             f.write("   %20.14f\n" % truth  )
             
             if nobs == 1:
@@ -125,7 +143,8 @@ def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,output_dir):
             
             f.write("    %d          %d     \n" % (seconds, days) )
             
-            f.write("    %20.14f  \n" % sigq[i]**2 )
+            sigdew = calc_dewpoint_error(w[i], p[i], sigw[i])
+            f.write("    %20.14f  \n" % (sigdew)**2 )
             
     f.close()
     
@@ -140,27 +159,27 @@ def write_obs_seq(t,sigt,xt,yt,zt,ttime,w,sigw,xw,yw,zw,wtime,output_dir):
     f.write("obs_kind_definitions\n")
     
     f.write("       %d\n" % 2)
-    f.write("    %d          %s   \n" % (14, "AIRCRAFT_TEMPERATURE") )
-    f.write("    %d          %s   \n" % (15, "AIRCRAFT_SPECIFIC_HUMIDITY") )
+    f.write("    %d          %s   \n" % (14, "RADIOSONDE_TEMPERATURE") )
+    f.write("    %d          %s   \n" % (15, "RADIOSONDE_DEWPOINT") )
     f.write("  num_copies:            %d  num_qc:            %d\n" % (1, 1))
     f.write(" num_obs:       %d  max_num_obs:       %d\n" % (nobs, nobs) )
     f.write("observations\n")
-    f.write("QC remote profiler\n")
+    f.write("QC obs\n")
     f.write("  first:            %d  last:       %d\n" % (1, nobs) )
     
     f.write(f_obs_seq)
   
     f.close()
     
-start_date = datetime(2023,4,19,21,0,0)
-end_date = datetime(2023,4,19,22,30,0)
+start_date = datetime(2024,5,8,18,0,0)
+end_date = datetime(2024,5,8,20,0,0)
 step = timedelta(minutes=15)
 
-tropoe_path = '/Users/joshua.gebauer/TROPoeSim_output/NatureRun_20230419/IRS_MWR/'
+tropoe_path = '/work/joshua.gebauer/SimObs/8May2024/obs_nc/TROPoeSim_Output/irs_recenter/'
 
 tfiles = []
 tfiles = tfiles + sorted(glob.glob(tropoe_path + '*' + start_date.strftime("%Y%m%d") + '*.cdf'))
-output_dir = '/Users/joshua.gebauer/Profiler_ObsSeq/IRS_MWR/'
+output_dir = '/work/joshua.gebauer/SimObs/8May2024/obs_seq/irs_recenter/'
 
 curr = start_date
 
@@ -168,6 +187,7 @@ while curr <= end_date:
     
     t_4DA = []
     w_4DA = []
+    p_4DA = [] 
     zt_4DA = []
     xt_4DA = []
     yt_4DA = []
@@ -199,6 +219,7 @@ while curr <= end_date:
         
         t = np.squeeze(f.variables['temperature'][foo,:])
         w = np.squeeze(f.variables['waterVapor'][foo,:])
+        p = np.squeeze(f.variables['pressure'][foo,:])
         z = f.variables['height'][:]
         sigmat = np.squeeze(f.variables['sigma_temperature'][foo,:])
         sigmaw = np.squeeze(f.variables['sigma_waterVapor'][foo,:])
@@ -238,6 +259,7 @@ while curr <= end_date:
             if len(foo) > 0:
                 if (z[foo[0]] < cbh) or (lwp < 5):
                     w_4DA.append(w[foo[0]])
+                    p_4DA.append(p[foo[0]])
                     zw_4DA.append(z[foo[0]]*1000+alt)
                     xw_4DA.append(lon)
                     yw_4DA.append(lat)
@@ -254,6 +276,7 @@ while curr <= end_date:
     ttime_4DA = np.array(ttime_4DA)
     
     w_4DA = np.array(w_4DA)
+    p_4DA = np.array(p_4DA)
     zw_4DA = np.array(zw_4DA)
     xw_4DA = np.array(xw_4DA)
     yw_4DA = np.array(yw_4DA)
@@ -262,7 +285,7 @@ while curr <= end_date:
     
     
     write_obs_seq(t_4DA,sigmat_4DA,xt_4DA,yt_4DA,zt_4DA,ttime_4DA,w_4DA,sigmaw_4DA,
-                  xw_4DA,yw_4DA,zw_4DA,wtime_4DA,output_dir)
+                  xw_4DA,yw_4DA,zw_4DA,wtime_4DA,p_4DA,output_dir)
     
     curr += timedelta(minutes=15)
         
