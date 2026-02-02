@@ -1,0 +1,83 @@
+model                    = 1
+model_frequency          = 900
+model_dir                = /work2/wof/realtime/nature_run/15-03Z_5min/
+model_timestep           = 0.025
+model_prefix             = wrfnr_d01_
+coordinate_type          = 1
+use_calendar             = 1
+start_year               = 2024
+start_month              = 5
+start_day                = 8
+start_hour               = 18
+start_min                = 0
+start_sec                = 0
+end_year                 = 2024
+end_month                = 5
+end_day                  = 8
+end_hour                 = 20
+end_min                  = 0
+end sec                  = 0
+start_time               = 21000
+end_time                 = 21600
+ncar_les_nscl            = 21
+clouds                   = 1
+turb                     = 0
+#
+# Signal simulation information
+sim_signal               = 1
+signal_climo_file        = /home/joshua.gebauer/Obs_Simulators/LidarSim/Oklahoma_C1.nc
+points_per_gate          = 20
+num_pulses               = 10000
+#
+# Output file information
+outfile                  = 70deg_VAD_-85.00324251482394_39.86414530418863.nc
+append                   = 0
+clobber                  = 0
+#
+# Lidar scanning information
+instantaneous_scan       = 1
+number_scans             = 1
+scan_file1               = /home/joshua.gebauer/Obs_Simulators/LidarSim/Example_VAD.txt
+cc1                      = 1
+repeat1                  = 0
+dbs1                     = 0
+scan1_az_speed           = -1
+scan1_el_speed           = -1
+scan_file2               = None
+cc2                      = 0
+repeat2                  = 0
+dbs2                     = 0
+scan2_az_speed           = 0
+scan2_el_speed           = 0
+scan_file3               = None
+cc3                      = 0
+repeat3                  = 0
+dbs3                     = 0
+scan3_az_speed           = 0
+scan3_el_speed           = 0
+scan_file4               = None
+cc4                      = 0
+repeat4                  = 0
+dbs4                     = 0
+scan4_az_speed           = 0
+scan4_el_speed           = 0
+stare_length             = 0
+motor_az_speed           = 36
+motor_el_speed           = 36
+pulse_width              = 150
+gate_width               = 200
+maximum_range            = 4
+dbs_start_height         = 40
+dbs_end_height           = 480
+dbs_spacing              = 20
+sample_resolution        = 5
+nyquist_velocity         = 38.8
+ray_time                 = 0.2083
+#
+#
+# Lidar position information
+lidar_lat                = 39.86414530418863
+lidar_lon                = -85.00324251482394
+lidar_x                  = -500
+lidar_y                  = -500
+lidar_alt                =  -1
