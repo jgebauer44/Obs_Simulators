@@ -7,6 +7,42 @@ import glob
 import pyproj
 from datetime import datetime, timedelta
 
+from collections import defaultdict
+from numba import njit, prange
+
+@njit(parallel=True)
+def interp_columnwise_binary(R, Zorig, Znew):
+    ''' from chatgpt. R = model field, Zorig = original model z coordinates, Znew = radar beam heights (scan_z)'''
+    nz_new, ny, nx = Znew.shape
+    nz = R.shape[0]
+    out = np.empty((nz_new, ny, nx), dtype=R.dtype)
+
+    for j in prange(ny):
+        for i in range(nx):
+
+            zc = Zorig[:, j, i]
+            rc = R[:, j, i]
+
+            for k in range(nz_new):
+                ztgt = Znew[k, j, i]
+
+                idx = np.searchsorted(zc, ztgt) - 1
+                if idx < 0: idx = 0
+                if idx >= nz-1: idx = nz-2
+
+                z0, z1 = zc[idx], zc[idx+1]
+                r0, r1 = rc[idx], rc[idx+1]
+
+                w = (ztgt - z0) / (z1 - z0)
+                out[k, j, i] = r0 + w*(r1 - r0)
+
+    return out
+
+
+def findnearest(array, value):
+    array = np.asarray(array)
+    return (np.abs(array-value)).argmin()
+
 def read_namelist(filename):
     
     # This large structure will hold all of the namelist option. We are
@@ -138,7 +174,11 @@ def sfc_rng_to_range(sfc_range,el,z):
 
 def read_wrf(stations,model_dir,time,prefix,latlon):
 
-    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
+    # account for potential formatting differences
+    if os.path.isfile(model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')):
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')
+    else:
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
 
     try:
         fid = Dataset(file,'r')
@@ -266,9 +306,8 @@ def read_cm1(stations,model_dir,time,frequency,prefix):
             'xx':xx,'yy':yy,'zz':zz, 'x_grid':x_grid, 'y_grid':y_grid, 'lat':lat,'lon':lon, 'u':u, 'v':v, 'w':w,
             'ref':ref,'ground':ground,'truelat1':truelat1, 'truelat2':truelat2, 'lat0':lat_0, 'lon0':lon_0, 'proj':'None',}
 
-def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevations,namelist,latlon=1,max_range=300):
+def create_and_write_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevations,namelist,latlon, index,start_time, end_time,max_range=300):
 
-    a_e = 4*6371 *1000/3
 
     if isinstance(time,datetime):
         print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
@@ -281,134 +320,124 @@ def create_radar_obs(stations,station_id,model_dir,time,frequency,prefix,elevati
     elif namelist['model'] == 5:
         model_data = read_cm1(stations,model_dir,time,frequency,prefix)
 
+    a_e = 4*6371 *1000/3 
     beam_height = np.sqrt(max_range**2 + (a_e)**2 + 2*(a_e)*max_range*np.sin(np.deg2rad(elevations[0])))-a_e
     sfc_rng = a_e*np.arcsin(max_range*np.cos(np.deg2rad(elevations[0]))/(a_e+beam_height))*1000
-
-    ref_scans = []
-    vel_scans = []
-    lat_scans = []
-    lon_scans = []
-    xx_scans = []
-    yy_scans = []
-    zz_scans = []
-    az_scans = []
-    good = []
-
+    
+    
+    ##################
+    # enclose the approximate domain to do a quick check for radar location - saves ~1-9 s per excluded radar!
+    buffer = max_range + 100
+    buf_y1, buf_y2 = np.min(model_data['yy'])-buffer, np.max(model_data['yy'])+buffer
+    buf_x1, buf_x2 = np.min(model_data['xx'])-buffer, np.max(model_data['xx'])+buffer
+    
+    ##################
+    
+    
     for k in range(np.atleast_2d(stations).shape[0]):
         
         print('Generating data for ' + np.atleast_1d(station_id)[k])
-
-        # Calculate the surface range from the radar
-        xx_temp = model_data['xx']-model_data['station_x'][k]
-        yy_temp = model_data['yy']-model_data['station_y'][k]
-        zz_temp = model_data['zz']-model_data['station_alt'][k]
-
-        x_grid_temp = model_data['x_grid']-model_data['station_x'][k]
-        y_grid_temp = model_data['y_grid']-model_data['station_y'][k]
-        grid_sfc_rng = np.sqrt(xx_temp**2 + yy_temp**2)
-
-        az_temp = np.rad2deg(np.arctan2(xx_temp, yy_temp))
-        az_temp[az_temp < 0.0] += 360.0
-
-        # We only want to work with the points that are inside max range
-        foo = np.where(grid_sfc_rng <= sfc_rng)
-
-        if len(foo[0]) == 0:
-            ref_scans.append(-999.)
-            vel_scans.append(-999.)
-            lat_scans.append(-999.)
-            lon_scans.append(-999.)
-            xx_scans.append(-999.)
-            yy_scans.append(-999.)
-            zz_scans.append(-999.)
-            az_scans.append(-999.)
-            good.append(False)
-            continue
         
-        foo = np.where(grid_sfc_rng > sfc_rng)
+        # do a very rough and dirty check for radar locations. It's faster than a more formal check of the surface range 
+        rx  = model_data['station_x'][k]
+        ry  = model_data['station_y'][k]
         
-        yy_temp_copy = np.copy(yy_temp)
-        xx_temp_copy = np.copy(xx_temp)
-
-        yy_temp_copy[foo] = np.nan
-        xx_temp_copy[foo] = np.nan
-
-        y_grid_min = np.nanmin(yy_temp_copy)
-        x_grid_min = np.nanmin(xx_temp_copy)
-        y_grid_max = np.nanmax(yy_temp_copy)
-        x_grid_max = np.nanmax(xx_temp_copy)
+        if (rx > buf_x1) & (rx < buf_x2) & (ry > buf_y1) & (ry < buf_y2):
+           
+            # Calculate the surface range from the radar (xrel = 'x coordinates relative to radar')
+            xrel = model_data['xx']-model_data['station_x'][k]
+            yrel = model_data['yy']-model_data['station_y'][k]
+            zrel = model_data['zz']-model_data['station_alt'].flatten()[k]
+            grid_sfc_rng = np.sqrt(xrel**2 + yrel**2)
         
-        y_index_min = np.argmin(np.abs(y_grid_min-y_grid_temp))
-        y_index_max = np.argmin(np.abs(y_grid_max-y_grid_temp))
+            # helps with indexing later
+            xrel_1d = model_data['x_grid']-model_data['station_x'][k]
+            yrel_1d = model_data['y_grid']-model_data['station_y'][k]
+            
+        
+            az_temp = np.rad2deg(np.arctan2(xrel,yrel))
+            az_temp[az_temp < 0.0] += 360.0
+        
+            # # We only want to work with the points that are inside max range
+            foo = np.where(grid_sfc_rng <= sfc_rng)
+        
+            if len(foo[0]) == 0:
+                print('    radar not in model domain, skipping...')
+                continue
+            
+            range_mask = (grid_sfc_rng > sfc_rng)
+            
+            # radar relative coordinates, masked where max range is exceeded
+            masked_xrel = np.where(range_mask, np.nan, xrel)
+            masked_yrel = np.where(range_mask, np.nan, yrel)
+        
+            # find indices to subset data around radar 
+            # note that +1 was added to the max index already
+            y1, y2 = findnearest(np.nanmin(masked_yrel), yrel_1d), findnearest(np.nanmax(masked_yrel), yrel_1d)+1
+            x1, x2 = findnearest(np.nanmin(masked_xrel), xrel_1d), findnearest(np.nanmax(masked_xrel), xrel_1d)+1
 
-        x_index_min = np.argmin(np.abs(x_grid_min-x_grid_temp))
-        x_index_max = np.argmin(np.abs(x_grid_max-x_grid_temp))
+            # create subset 
+            ref_sub = model_data['ref'][:, y1:y2, x1:x2]
+            u_sub   = model_data['u'][:, y1:y2, x1:x2]
+            v_sub   = model_data['v'][:, y1:y2, x1:x2]
+            w_sub   = model_data['w'][:, y1:y2, x1:x2]
+        
+            x_sub   = xrel[y1:y2, x1:x2]
+            y_sub   = yrel[y1:y2, x1:x2]
+            z_sub   = zrel[:,y1:y2, x1:x2]
+        
+            lat_sub = model_data['lat'][y1:y2, x1:x2]
+            lon_sub = model_data['lon'][y1:y2, x1:x2]
+            ground_temp = model_data['ground'][y1:y2, x1:x2]
+        
+            sfc_rng_temp = grid_sfc_rng[y1:y2, x1:x2]
+        
+            az_sub = np.rad2deg(np.arctan2(x_sub, y_sub))
+            az_sub[az_sub < 0.0] += 360.0
+        
+        
+            # Now for each grid box, calculate the height of the beam for each elevation
+            # First find the heights for each elevation
+            scan_z = sfc_rng_to_beam_height(sfc_rng_temp,elevations)
+        
+            # Now find the range for each elevation
+            scan_r = sfc_rng_to_range(sfc_rng_temp,elevations,scan_z)
+        
+        
+            # using jit and numba, perform the interpolation
+            # it loops over all x and y grid points, and does an interpolation in each vertical column
+            # it can't handle masked arrays, so we need to fill the invalid data with nans
+            myref = interp_columnwise_binary(ref_sub.filled(np.nan), z_sub.filled(np.nan), scan_z)
+            myu   = interp_columnwise_binary(u_sub.filled(np.nan),   z_sub.filled(np.nan), scan_z)
+            myv   = interp_columnwise_binary(v_sub.filled(np.nan),   z_sub.filled(np.nan), scan_z)
+            myw   = interp_columnwise_binary(w_sub.filled(np.nan),   z_sub.filled(np.nan), scan_z)
+            
+            myvel = (myu*x_sub + myv*y_sub + myw*scan_z)/ np.sqrt(x_sub**2 + y_sub**2 + scan_z**2)
+        
+        
+            # now apply final masks 
+            ground_mask = (np.stack([ground_temp]*len(elevations)) >= (scan_z+model_data['station_alt'].flatten()[k]))
+            range_mask  = (scan_r > max_range*1000)
+            ref_mask    = myref < 5
+        
+            myref[ground_mask | range_mask] = np.nan
+            myvel[ground_mask | range_mask | ref_mask] = np.nan
 
-        ref_temp = model_data['ref'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        u_temp = model_data['u'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        v_temp = model_data['v'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        w_temp = model_data['w'][:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-
-        ground_temp = model_data['ground'][y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        lat_temp = model_data['lat'][y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        lon_temp = model_data['lon'][y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        xxx_temp = xx_temp[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        yyy_temp = yy_temp[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        zzz_temp = zz_temp[:,y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-        sfc_rng_temp = grid_sfc_rng[y_index_min:y_index_max+1,x_index_min:x_index_max+1]
-
-        az_temp = np.rad2deg(np.arctan2(xxx_temp, yyy_temp))
-        az_temp[az_temp < 0.0] += 360.0
-
-
-        # Now for each grid box, calculate the height of the beam for each elevations
-        # First find the heights for each elevation
-        scan_z = sfc_rng_to_beam_height(sfc_rng_temp,elevations)
-
-        # Now find the range for each elevation
-        scan_r = sfc_rng_to_range(sfc_rng_temp,elevations,scan_z)
-
-        tmp_rf = np.ones(scan_z.shape)*np.nan
-        tmp_vel = np.ones(scan_z.shape)*np.nan
-
-        for i in range(xxx_temp.shape[0]):
-            for j in range(xxx_temp.shape[1]):
-                tmp_rf[:,i,j] = np.interp(scan_z[:,i,j],zzz_temp[:,i,j],ref_temp[:,i,j],left=np.nan,right=np.nan)
-                uuu = np.interp(scan_z[:,i,j],zzz_temp[:,i,j],u_temp[:,i,j],left=np.nan,right=np.nan)
-                vvv = np.interp(scan_z[:,i,j],zzz_temp[:,i,j],v_temp[:,i,j],left=np.nan,right=np.nan)
-                www = np.interp(scan_z[:,i,j],zzz_temp[:,i,j],w_temp[:,i,j],left=np.nan,right=np.nan)
-
-                tmp_vel[:,i,j] = (uuu*xxx_temp[i,j] + vvv*yyy_temp[i,j] + www*scan_z[:,i,j])/np.sqrt(xxx_temp[i,j]**2+yyy_temp[i,j]**2+scan_z[:,i,j]**2)
-
-        fah = np.where(np.stack([ground_temp]*len(elevations)) >= (scan_z+model_data['station_alt'][k]))
-        tmp_rf[fah] = np.nan
-        tmp_vel[fah] = np.nan
-
-        fah = np.where(scan_r > max_range*1000)
-        tmp_rf[fah] = np.nan
-        tmp_vel[fah] = np.nan
-
-        fah = np.where(tmp_rf < 5)
-        tmp_vel[fah] = np.nan
-                
-        ref_scans.append(np.copy(tmp_rf))
-        vel_scans.append(np.copy(tmp_vel))
-        lat_scans.append(np.copy(lat_temp))
-        lon_scans.append(np.copy(lon_temp))
-        xx_scans.append(np.copy(xxx_temp))
-        yy_scans.append(np.copy(yyy_temp))
-        zz_scans.append(np.copy(scan_z))
-        az_scans.append(np.copy(az_temp))
-        good.append(True)
+                 
+            radar = {'station_id': np.atleast_1d(station_id)[k], 'radar_lat':np.atleast_2d(stations)[k,0], 'radar_lon':np.atleast_2d(stations)[k,1],'radar_alt':np.atleast_2d(stations)[k,2],
+                     'ref':[myref.copy()], 'vel':[myvel.copy()],
+                     'lat':[lat_sub], 'lon':[lon_sub], 'x':[x_sub], 'y':[y_sub],'z':[scan_z],'el':elevations,'az':[az_sub],
+                     'truelat1':np.copy(model_data['truelat1']), 'truelat2':np.copy(model_data['truelat2']),
+                     'lat0':np.copy(model_data['lat0']), 'lon0':np.copy(model_data['lon0']), 'proj':'lcc'}
 
 
-    radar = {'station_id': station_id, 'ref':ref_scans, 'vel':vel_scans,
-             'lat':lat_scans, 'lon':lon_scans, 'x':xx_scans, 'y':yy_scans,'z':zz_scans,
-             'radar_lat':np.atleast_2d(stations)[:,0], 'radar_lon':np.atleast_2d(stations)[:,1],'radar_alt':np.atleast_2d(stations)[:,2],
-             'el':elevations,'az':az_temp,'truelat1':np.copy(model_data['truelat1']), 'truelat2':np.copy(model_data['truelat2']),
-             'lat0':np.copy(model_data['lat0']), 'lon0':np.copy(model_data['lon0']), 'proj':'lcc','good':good}
 
-    return 1, radar
+            write_to_file(radar,output_dir, namelist, time, index, start_time, end_time)
+
+            del radar
+            
+    return 1#, radar
+
 
 def write_to_file(radar,output_dir, namelist, model_time, snum, start_time, end_time):
     
@@ -422,10 +451,6 @@ def write_to_file(radar,output_dir, namelist, model_time, snum, start_time, end_
     
     # We need to do this for each radar site
     for i in range(len(np.atleast_1d(radar['station_id']))):
-
-        # If there is nothing good for this radar then don't write a file
-        if not radar['good'][i]:
-            continue
 
         outfile_path = output_dir + '/' + namelist['outfile_root'] + '_' + np.atleast_1d(radar['station_id'])[i] + '_' + start_str + '_' + end_str + '.nc'
 
@@ -666,12 +691,12 @@ for index in range(len(snum)):
         '        ...but was already processed. Continuing.'
         continue
     
-    success, radar = create_radar_obs(stations,station_id,namelist['model_dir'],model_time[index],namelist['model_frequency'],
-                     namelist['model_prefix'], elevations, namelist, namelist['coordinate_type'])
-        
-    if success != 1:
-        print('Something went wrong collecting the radar obs for ', model_time[index])
-        print('Skipping model time')
-        continue
-        
-    write_to_file(radar,output_dir, namelist, model_time[index], index, start_time, end_time)
+    success = create_and_write_radar_obs(stations,station_id,namelist['model_dir'],model_time[index],namelist['model_frequency'],
+                 namelist['model_prefix'], elevations, namelist, namelist['coordinate_type'], index, start_time, end_time)
+    
+    # if success != 1:
+    #     print('Something went wrong collecting the radar obs for ', model_time[index])
+    #     print('Skipping model time')
+    #     continue
+    
+    # write_to_file(radar,output_dir, namelist, model_time[index], index, start_time, end_time)

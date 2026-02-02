@@ -236,8 +236,12 @@ def read_namelist(filename):
 
 def create_profiler_wrf(stations,model_dir,time,prefix,levels, namelist,latlon=1):
     
+    # Account for potential file formatting differences
     print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
-    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
+    if os.path.isfile(model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')):
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')
+    else:
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
     
     try:
         fid = Dataset(file,'r')
@@ -747,7 +751,7 @@ if namelist['success'] != 1:
     print("-----------------------------------------------------------------------")
     sys.exit()
 
-# Read in the radar scan file
+# Read in the profiler station file
 print('Reading in profiler station file')
 try:
     stations = np.genfromtxt(namelist['station_file'],autostrip=True)

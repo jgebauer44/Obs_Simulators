@@ -39,7 +39,11 @@ def read_model_data(time, namelist,sspl,sspi):
 
 def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndcnst=250):
     
-    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
+    # Account for formatting differences
+    if os.path.isfile(model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')):
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')
+    else:
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
     
     try:
         fid = Dataset(file,'r')
@@ -118,7 +122,6 @@ def read_wrf(x, y, time, model_dir, prefix, sspl, sspi, mp_scheme, latlon=1, ndc
     else:
         tv = (t[0]+273.16)*(1+0.61*q[0]/1000)
         psfc = p[0]*np.exp(9.81*(zz[0]-ground)/(287.*tv))
-        print(psfc)
 
     rho = Other_functions.get_density(t+273.16,w,p)
     

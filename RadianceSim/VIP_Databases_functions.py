@@ -193,7 +193,7 @@ full_vip = ({
     'min_PBL_height': {'value': 0.3, 'comment': 'The minimum height of the planetary boundary l}ayer (used for trace gases) [km AGL]', 'default': False},
     'max_PBL_height': {'value': 5.0, 'comment': 'The maximum height of the planetary boundary layer (used for trace gases) [km AGL]', 'default': False},
     'nudge_PBL_height': {'value': 0.5, 'comment': 'The temperature offset (nudge) added to the surface temp to find PBL height [C]', 'default': False},
-    'recenter_prior': {'value':0, 'comment': '0 - do not recenter prior, 1 - recenter prior', 'default': True}
+    'recenter_prior': {'value':1, 'comment': '0 - do not recenter prior, 1 - recenter prior', 'default': True}
 }
 )
 
