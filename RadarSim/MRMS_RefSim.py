@@ -94,7 +94,11 @@ def read_namelist(filename):
 
 def read_wrf(stations,model_dir,time,prefix,latlon):
 
-    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
+    # account for potential formatting differences
+    if os.path.isfile(model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')):
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')
+    else:
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
 
     try:
         fid = Dataset(file,'r')
@@ -126,7 +130,7 @@ def read_wrf(stations,model_dir,time,prefix,latlon):
         y_grid = np.arange(ny) * dy + y0
         xx, yy = np.meshgrid(np.arange(nx) * dx + x0, np.arange(ny) * dy + y0)
         station_x_proj, station_y_proj = transformer.transform(np.atleast_2d(stations)[:,1], np.atleast_2d(stations)[:,0])
-        station_alt = np.copy(np.atleast_2d(stations[:,2]))
+        station_alt = np.copy(np.atleast_2d(stations)[:,2])
         
     else:
         xx, yy = np.meshgrid(np.arange(fid.dimensions['west_east'].size) * fid.DX, np.arange(fid.dimensions['south_north'].size) * fid.DY)

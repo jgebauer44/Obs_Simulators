@@ -40,9 +40,9 @@ def rh2dpt(temp,rh):
     trplpt = 273.16
     tzero = 273.15
     
-    yo = np.where(np.array(temp) == 0)[0]
+    yo = np.where(np.atleast_1d(temp) == 0)[0]
     if len(yo) > 0:
-        return np.zeros(len(temp))
+        return np.zeros(len(np.atleast_1d(temp)))
 
     latent = 2.5e6 - 2.386e3*temp
     dpt = np.copy(temp)
@@ -223,7 +223,10 @@ def read_namelist(filename):
 def create_mesonet_wrf(stations,model_dir,time,prefix,namelist,latlon=1):
     
     print('Starting generation of obs for time: ' + time.strftime('%Y-%m-%d_%H:%M:%S'))
-    file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
+    if os.path.isfile(model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')):
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H_%M_%S')
+    else:
+        file = model_dir + '/' + prefix + time.strftime('%Y-%m-%d_%H:%M:%S')
     
     try:
         f = Dataset(file,'r')
@@ -320,7 +323,6 @@ def create_mesonet_wrf(stations,model_dir,time,prefix,namelist,latlon=1):
     mesonet_wdir[foo] += 360
     
     # Return mesonet data in a dictionary
-    
     mesonet = {'lat':stations[:,0], 'lon':stations[:,1], 'alt':mesonet_alt, 'temp':mesonet_t,
                'dew':mesonet_dew, 'rh':mesonet_rh, 'wspd':mesonet_wspd, 'wdir':mesonet_wdir,
                'u':mesonet_u, 'v':mesonet_v, 'psfc':mesonet_psfc}

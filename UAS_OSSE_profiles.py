@@ -6,17 +6,9 @@ Created on Tue Jul  2 11:18:57 2024
 @author: joshua.gebauer
 """
 
-import os
-import sys
 import numpy as np
-import glob
-import pyproj
-import struct
-import xarray as xr
 from netCDF4 import Dataset
-from scipy.interpolate import interp1d
 from scipy.interpolate import RegularGridInterpolator
-from scipy.special import erf
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 
@@ -175,7 +167,6 @@ def write_dart_obs_seq(profiler,output_dir,time,temp_error,rh_error,wind_error):
     
         f = open(filename,"w")
         
-        print(filename)
         # Start with temperature
     
         nobs = 0
@@ -380,26 +371,22 @@ wind_rep_error = 0.4
 
 
 ascent_rate = 5
-# first_flight = datetime(2023,4,19,21,10,0)
-# first_DA_time = datetime(2023,4,19,21,15,0)
-# last_flight = datetime(2023,4,19,22,10,0)
-# last_DA_time = datetime(2023,4,19,22,15,0)
-first_flight = datetime(2023,2,27,0,10,0)
-first_DA_time = datetime(2023,2,27,0,15,0)
-last_flight = datetime(2023,2,27,1,10,0)
-last_DA_time = datetime(2023,2,27,1,15,0)
+first_flight = datetime(2025,3,14,21,40,0)
+first_DA_time = datetime(2025,3,14,21,45,0)
+last_flight = datetime(2025,3,14,22,40,0)
+last_DA_time = datetime(2025,3,14,22,45,0)
 flight_frequency = timedelta(hours=1)
 max_wind = 35
 delta_z = 500.
 da_heights = np.arange(250,3001,500)
-output_dir = 'obsseq/UAS/20230226/'
+output_dir = '/work/joshua.gebauer/SimObs/20250314/obs_seq/uas_100km/'
 
 flight_stime = np.arange(first_flight,last_flight+flight_frequency,flight_frequency).astype(datetime)
 DA_times = np.arange(first_DA_time, last_DA_time+flight_frequency,flight_frequency).astype(datetime)
 
 flight_stime_epoch = np.array([(x - datetime(1970,1,1)).total_seconds() for x in flight_stime])
 
-file = 'PerfectProfiler/48_UAS_20230227_000000_20230227_013000.nc'
+file = '/work/joshua.gebauer/SimObs/20250314/obs_nc/UAS_100km_20250314_210000_20250314_230000.nc'
 
 f = Dataset(file)
 
@@ -432,8 +419,8 @@ for i in range(len(flight_stime)):
     
     for j in range(t.shape[2]):
         
-        if np.isnan(t[0,0,j]):
-            continue
+        #if np.isnan(t[0,0,j]):
+            #continue
         
         t_interp = RegularGridInterpolator((time,z),t[:,:,j],bounds_error = False, fill_value=None)
         uas_t[i,:,j] = t_interp((flight_time,z))
@@ -450,9 +437,13 @@ for i in range(len(flight_stime)):
         p_interp = RegularGridInterpolator((time,z),p[:,:,j],bounds_error = False,fill_value=None)
         uas_pres[i,:,j] = p_interp((flight_time,z))
         
+        foo = np.where(np.isnan(uas_t[i,:,j]))[0]
+        if len(foo) > 0:
+            uas_t[i,:,j] = np.nan
+            uas_rh[i,:,j] = np.nan
+            uas_u[i,:,j] = np.nan
+            uas_v[i,:,j] = np.nan
 
-
-     
 t_err = np.zeros((uas_t.shape[0],uas_t.shape[2]))
 rh_err = np.zeros((uas_t.shape[0],uas_t.shape[2]))
 u_err = np.zeros((uas_t.shape[0],uas_t.shape[2]))
@@ -464,7 +455,6 @@ for i in range(uas_t.shape[1]):
     u_err = np.random.normal(0,wind_error,size=(uas_u.shape[0],uas_u.shape[2])) + error_lag*u_err
     v_err = np.random.normal(0,wind_error,size=(uas_v.shape[0],uas_v.shape[2])) + error_lag*v_err
     
-    print(t_err[0,0])
     uas_t[:,i,:] += t_err
     uas_rh[:,i,:] += rh_err
     uas_u[:,i,:] += u_err
@@ -483,7 +473,7 @@ v4DA = np.ones((len(flight_stime),len(da_heights),t.shape[2]))*np.nan
 
 for i in range(len(flight_stime)):
     for j in range(uas_t.shape[2]):
-        
+    
         foo = np.where(np.sqrt(uas_u[i,:,j]**2 + uas_v[i,:,j]**2) > max_wind)[0]
         if len(foo) == 0:
             uas_maxz[i,j] = z[-1]
@@ -505,12 +495,6 @@ for i in range(len(flight_stime)):
             rh4DA[i,k,j] = np.nanmean(uas_rh[i,foo[fah],j])
             u4DA[i,k,j] = np.nanmean(uas_u[i,foo[fah],j])
             v4DA[i,k,j] = np.nanmean(uas_v[i,foo[fah],j])
-            
-            # t4DA[i,:,j] = np.interp(da_heights,z[foo],uas_t[i,foo,j],left=np.nan,right=np.nan)
-            # rh4DA[i,:,j] = np.interp(da_heights,z[foo],uas_rh[i,foo,j],left=np.nan,right=np.nan)        
-            # u4DA[i,:,j] = np.interp(da_heights,z[foo],uas_u[i,foo,j],left=np.nan,right=np.nan)
-            # v4DA[i,:,j] = np.interp(da_heights,z[foo],uas_v[i,foo,j],left=np.nan,right=np.nan)
-        
         
         foo = np.where(uas_maxz[i,j] < z[:])[0]
         
@@ -527,7 +511,6 @@ for i in range(len(flight_stime)):
         u4DA[i,foo,j] = np.nan
         v4DA[i,foo,j] = np.nan
 
-       
 dew4DA = rh2dpt(t4DA,rh4DA/100)
 
 

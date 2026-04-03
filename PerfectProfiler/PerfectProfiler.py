@@ -789,7 +789,7 @@ else:
     end_str = str(model_time[-1])
 
 # Get the levels for the perfect profilers
-if namelist['level_spaing'] < 0:
+if namelist['level_spacing'] < 0:
     levels = np.array([-1])
 else:
     levels = np.arange(namelist['level_spacing'],namelist['max_height']+1,namelist['level_spacing'])

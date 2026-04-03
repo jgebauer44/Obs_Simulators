@@ -456,7 +456,6 @@ def signal_sim(ray, file, r, nyquist_velocity, points_per_gate, num_pulse):
 ##############################################################################
 
 def get_wrf_data(x,y,z,lidarx,lidary,lidarz,file,cloud,xx,yy,transform,agl=False):
-    
     f = Dataset(file)
 
     if xx is None:
@@ -467,11 +466,9 @@ def get_wrf_data(x,y,z,lidarx,lidary,lidarz,file,cloud,xx,yy,transform,agl=False
         f_g = RegularGridInterpolator((yy[:,0],xx[0,:]), z_ground, bounds_error=False)
         z_ground_point = f_g((lidary,lidarx))
         z += z_ground_point
+    else:
+        z_ground_point = 0
 
-    zz = (f['PH'][0] + f['PHB'][0])/9.81
-    zz = (zz[1:] + zz[:-1])/2.
-    
-    zz = zz.T
     xx = xx.T
     yy = yy.T
     
@@ -516,16 +513,20 @@ def get_wrf_data(x,y,z,lidarx,lidary,lidarz,file,cloud,xx,yy,transform,agl=False
     else:
         iymin, iymax = np.where((np.min(y) > yy[0]))[0][-1], np.where((np.max(y) <= yy[0]))[0][0]
     
+    zz = (f['PH'][0,:,iymin:iymax+1,ixmin:ixmax+1] + f['PHB'][0,:,iymin:iymax+1,ixmin:ixmax+1])/9.81
+    zz = (zz[1:] + zz[:-1])/2.
+    zz = zz.T
+    
     if np.max(z) > np.max(np.min(np.min(zz,axis=0),axis=0)):
         izmax = zz.shape[0]-1
     else:
         izmax = np.where(np.max(z) < np.min(np.min(zz,axis=0),axis=0))[0][0]
-        
-    u = (f['U'][0,:,:,1:] + f['U'][0,:,:,:-1])/2.
-    u = u[:izmax+1,iymin:iymax+1,ixmin:ixmax+1].T
     
-    v = (f['V'][0,:,1:,:] + f['V'][0,:,:-1,:])/2.
-    v = v[:izmax+1,iymin:iymax+1,ixmin:ixmax+1].T
+    u = f['U'][0,:izmax+1,iymin:iymax+1,ixmin:ixmax+2]
+    v = f['V'][0,:izmax+1,iymin:iymax+2,ixmin:ixmax+1]
+
+    u = ((u[:,:,1:] + u[:,:,:-1])/2).T
+    v = ((v[:,1:,:] + v[:,:-1,:])/2).T
     
     if transform is not None:
         sinalpha = f['SINALPHA'][0,iymin:iymax+1,ixmin:ixmax+1].T
@@ -535,16 +536,14 @@ def get_wrf_data(x,y,z,lidarx,lidary,lidarz,file,cloud,xx,yy,transform,agl=False
         u = np.copy(u_tmp)
         v = np.copy(v_tmp)
 
-    w = (f.variables['W'][0,1:,:,:] + f.variables['W'][0,:-1,:,:])/2.
-    w = w[:izmax+1,iymin:iymax+1,ixmin:ixmax+1].T
+    w = f.variables['W'][0,:izmax+2,iymin:iymax+1,ixmin:ixmax+1]
+    w = ((w[1:,:,:] + w[:-1,:,:])/2).T
     
-    
-    zzz = zz[ixmin:ixmax+1,iymin:iymax+1,:izmax+1]
-    
+    zzz = zz[:,:,:izmax+1]
     qi = (x,y)
     q = (xx[ixmin:ixmax+1,0],yy[0,iymin:iymax+1])
     
-    # Although inefficient I am braking this up into 4 different loops because
+    # Although inefficient I am breaking this up into 4 different loops because
     # I am concerned about memory usage for a long range lidar
     
     idx = np.identity(len(x))*np.arange(1,len(x)+1)
@@ -608,11 +607,11 @@ def get_wrf_data(x,y,z,lidarx,lidary,lidarz,file,cloud,xx,yy,transform,agl=False
                 temp_v = np.interp(z[i],zzz[foo[0]],v[foo[0]],left=np.nan,right=np.nan)
                 temp_w = np.interp(z[i],zzz[foo[0]],w[foo[0]],left=np.nan,right=np.nan)
         
-                vr.append(((x[i]-lidarx)*temp_u + (y[i]-lidary)*temp_v + (z[i]-lidarz)*temp_w)/np.sqrt((x[i]-lidarx)**2 + (y[i]-lidary)**2 + (z[i]-lidarz)**2))
+                vr.append(((x[i]-lidarx)*temp_u + (y[i]-lidary)*temp_v + (z[i]-(lidarz+z_ground_point))*temp_w)/np.sqrt((x[i]-lidarx)**2 + (y[i]-lidary)**2 + (z[i]-(lidarz+z_ground_point))**2))
             else:
                 vr.append(np.nan)
-
-    return np.array(vr) 
+    
+    return np.array(vr), lidarz+z_ground_point
 
 
 ##############################################################################
@@ -1318,17 +1317,19 @@ def sim_observations(lidar_x, lidar_y, lidar_z, pulse_width, gate_width, sample_
         num = len(coords[0])
     
     if lidar_z < 0:
-        lidar_z = 0
+        lidar_z_temp = 0
         agl = True
     else:
+        lidar_z_temp = np.copy(lidar_z)
         agl = False
+        new_z = np.copy(lidar_z)
 
     sim_obs = []    
     for j in range(num):
         if instantaneous_scan == 0:
             x = r*np.cos(np.radians(coords[j][1]))*np.sin(np.radians(coords[j][0])) + lidar_x
             y = r*np.cos(np.radians(coords[j][1]))*np.cos(np.radians(coords[j][0])) + lidar_y
-            z = r*np.sin(np.radians(coords[j][1])) + lidar_z
+            z = r*np.sin(np.radians(coords[j][1])) + lidar_z_temp
             key = scan_key[j]
             elev = coords[j][1]
             azim = coords[j][0]
@@ -1336,7 +1337,7 @@ def sim_observations(lidar_x, lidar_y, lidar_z, pulse_width, gate_width, sample_
         else:
             x = r*np.cos(np.radians(coords[0][j,1]))*np.sin(np.radians(coords[0][j,0])) + lidar_x
             y = r*np.cos(np.radians(coords[0][j,1]))*np.cos(np.radians(coords[0][j,0])) + lidar_y
-            z = r*np.sin(np.radians(coords[0][j,1])) + lidar_z
+            z = r*np.sin(np.radians(coords[0][j,1])) + lidar_z_temp
             key = scan_key[0][j]
             elev = coords[0][j,1]
             azim = coords[0][j,0]
@@ -1344,7 +1345,7 @@ def sim_observations(lidar_x, lidar_y, lidar_z, pulse_width, gate_width, sample_
         if model_type == 1:
             #try:
             foo = np.flatnonzero(np.core.defchararray.find(np.array(files),model_time.strftime('%Y-%m-%d_%H_%M_%S'))!=-1)[0]
-            temp = get_wrf_data(x,y,z,lidar_x,lidar_y,lidar_z,files[foo],clouds,xx,yy,transform,agl)
+            temp, new_z = get_wrf_data(x,y,z,lidar_x,lidar_y,lidar_z_temp,files[foo],clouds,xx,yy,transform,agl)
             #except:
             #    print('ERROR: No model data was found for ' + str(model_time))
             #    sys.exit()
@@ -1408,13 +1409,13 @@ def sim_observations(lidar_x, lidar_y, lidar_z, pulse_width, gate_width, sample_
             
             
         sim_obs.append(temp)
-    return sim_obs
+    return sim_obs, new_z
 
 ##############################################################################
 # This function writes the output file for the lidar
 ##############################################################################
 
-def write_to_file(sim_obs,scan_key,lidar_time,model_time_key,model_time,scans,namelist,scan_number):
+def write_to_file(sim_obs,scan_key,lidar_time,model_time_key,model_time,scans,namelist,scan_number,new_z):
     
     # We don't want to append the file needs to be created the first time
     
@@ -1652,7 +1653,7 @@ def write_to_file(sim_obs,scan_key,lidar_time,model_time_key,model_time,scans,na
         else:
             fid.lidar_x = str(namelist['lidar_x'])
             fid.lidar_y = str(namelist['lidar_y'])
-        fid.lidar_alt = str(namelist['lidar_alt'])
+        fid.lidar_alt = str(new_z)
         fid.use_calendar = str(namelist['use_calendar'])
         if namelist['use_calendar'] == 1:
             fid.start_date = model_time[0].strftime('%Y-%m-%d %H:%M:%S')
@@ -2036,7 +2037,7 @@ for i in range(len(model_time)):
     # If the are rays to be simulated, we perform them
     if len(foo[bar]) > 0:
         print("Starting Simulations for " + str(model_time[i]))
-        temp = sim_observations(temp_lidar_x,temp_lidar_y,namelist['lidar_alt'], namelist['pulse_width'],
+        temp, new_z = sim_observations(temp_lidar_x,temp_lidar_y,namelist['lidar_alt'], namelist['pulse_width'],
                             namelist['gate_width'], namelist['sample_resolution'], namelist['maximum_range'], namelist['nyquist_velocity'],
                             [az_el_coords[x] for x in foo[bar]],namelist['model'],model_time[i],namelist['model_timestep'],files, namelist['instantaneous_scan'],
                             dname,namelist['model_frequency'],namelist['ncar_les_nscl'],
@@ -2064,7 +2065,7 @@ for i in range(len(model_time)):
     
     if namelist['instantaneous_scan'] == 1:
         t0 = time.time()
-        write_to_file(sim_obs,scan_key[i],lidar_time[i],model_time_key[i],model_time,scans,namelist,i)
+        write_to_file(sim_obs,scan_key[i],lidar_time[i],model_time_key[i],model_time,scans,namelist,i,new_z)
         
         t1 = time.time()
         print('Wrote scan ' + str(scan_number) + ' to output file in ' + str(t1-t0) + ' secs')

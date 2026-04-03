@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import glob as glob
 import pyproj
+from scipy.interpolate import RegularGridInterpolator
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
@@ -31,6 +32,14 @@ if fid.MAP_PROJ == 1:
 e, n = transformer.transform(fid.CEN_LON, fid.CEN_LAT)
 dx,dy = fid.DX, fid.DY
 nx, ny = fid.dimensions['west_east'].size, fid.dimensions['south_north'].size
+x0_model = -(nx-1) / 2. * dx + e
+y0_model = -(ny-1) / 2. * dy + n 
+x_grid_model = np.arange(nx) * dx + x0_model
+y_grid_model = np.arange(ny) * dy + y0_model
+
+# Need to load in land mask to make sure we don't put profilers in water
+landmask = fid.variables['LANDMASK'][0]
+fid.close()
 
 Lx = nx*dx
 Ly = ny*dy
@@ -43,6 +52,9 @@ y0 = -(new_ny-1) / 2. * site_dx + n
 x_grid = np.arange(new_nx) * site_dx + x0
 y_grid = np.arange(new_ny) * site_dx + y0
 xx, yy = np.meshgrid(x_grid, y_grid)
+
+interp = RegularGridInterpolator((y_grid_model,x_grid_model), landmask, bounds_error=False)
+station_land = interp((yy,xx))
 
 rng = np.random.default_rng()
 
@@ -63,12 +75,14 @@ final_lon,final_lat = transformer2.transform(final_x,final_y)
 
 final_lon = final_lon.ravel()
 final_lat = final_lat.ravel()
+station_land = station_land.ravel()
 
 filename = output_dir +'/' + netname + '.txt'
 
 f = open(filename,"w")
 
 for i in range(len(final_lon)):
-    f.write("%20.14f %20.14f \n"%(final_lat[i],final_lon[i]))
+    if station_land[i] == 1:
+        f.write("%20.14f %20.14f \n"%(final_lat[i],final_lon[i]))
 
 f.close()
